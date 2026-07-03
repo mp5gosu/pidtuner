@@ -26,6 +26,7 @@
 
 <nav class="tabs">
   <button class="tab active" data-tab="gyro">Gyro (filtered / unfiltered)</button>
+  <button class="tab" data-tab="spectrum">Noise Spectrum</button>
   <button class="tab" data-tab="compare">Step Response</button>
 </nav>
 
@@ -44,6 +45,28 @@
     <div id="gyro-controls" class="signal-toggles"></div>
     <div id="session-info" class="session-info"></div>
     <div id="gyro-charts" class="charts"></div>
+  </section>
+  <section id="tab-spectrum" class="tab-panel">
+    <p class="hint">Averaged amplitude spectrum (Welch) of the gyro per axis — for
+      hunting noise sources and setting the Betaflight gyro&nbsp;lowpass /
+      dynamic&nbsp;notch / RPM filter. Each chart has its own markers: click
+      <b>+&nbsp;Marker</b>, drag it onto a peak to read its frequency,
+      double-click it to add a label, <b>×</b> to remove one (or <b>Clear</b> for
+      all). The Y axis is framed to the noise band — low-frequency craft motion
+      runs off the top; <kbd>Shift</kbd>+<kbd>Scroll</kbd> out to see it.</p>
+    <p class="hint controls-hint">
+      <span class="ctl"><kbd>+ Marker</kbd> Add marker</span>
+      <span class="ctl"><kbd>Drag pill</kbd> Move · read Hz</span>
+      <span class="ctl"><kbd>Double-click pill</kbd> Label</span>
+      <span class="ctl"><kbd>Scroll</kbd> Zoom freq</span>
+      <span class="ctl"><kbd>Shift</kbd>+<kbd>Scroll</kbd> Zoom Y</span>
+      <span class="ctl"><kbd>Alt</kbd>+<kbd>Scroll</kbd> Pan ⇄</span>
+      <span class="ctl"><kbd>Drag</kbd> Pan</span>
+      <span class="ctl"><kbd>Alt</kbd>+<kbd>Drag</kbd> Box zoom</span>
+      <span class="ctl"><kbd>Double-click</kbd> Reset</span>
+    </p>
+    <div id="spectrum-controls" class="signal-toggles"></div>
+    <div id="spectrum-charts" class="charts"></div>
   </section>
   <section id="tab-compare" class="tab-panel">
     <p class="hint">Step response of the rate controller (Wiener deconvolution, consensus across all flight windows). After upload the longest session is shown automatically; up to 8 sessions from the currently uploaded logs can be overlaid.</p>

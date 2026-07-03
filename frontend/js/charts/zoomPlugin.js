@@ -206,9 +206,29 @@ export function zoomPlugin({ group = null } = {}) {
         });
 
         over.addEventListener("dblclick", () => {
-          const y = visibleYExtent(u);
           setX(xFull.min, xFull.max);
-          u.setScale("y", { min: y.min, max: y.max });
+          // Honor a chart's configured Y range function (e.g. spectrum charts
+          // framed to their noise band); fall back to fitting visible series.
+          const rangeFn = u.scales.y.range;
+          if (typeof rangeFn === "function") {
+            let lo = Infinity, hi = -Infinity;
+            for (let i = 1; i < u.series.length; i++) {
+              if (!u.series[i].show) continue;
+              const arr = u.data[i];
+              for (let j = 0; arr && j < arr.length; j++) {
+                const v = arr[j];
+                if (v == null || Number.isNaN(v)) continue;
+                if (v < lo) lo = v;
+                if (v > hi) hi = v;
+              }
+            }
+            if (lo > hi) { lo = 0; hi = 1; }
+            const [ymin, ymax] = rangeFn(u, lo, hi);
+            u.setScale("y", { min: ymin, max: ymax });
+          } else {
+            const y = visibleYExtent(u);
+            u.setScale("y", { min: y.min, max: y.max });
+          }
         });
       },
     },

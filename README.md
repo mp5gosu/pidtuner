@@ -1,8 +1,8 @@
 # PIDtuner
 
 A lean, browser-based PIDtoolbox clone: upload Betaflight Blackbox logs,
-compare filtered/unfiltered gyro, and analyze the step response of the
-rate controller with latency metrics.
+compare filtered/unfiltered gyro, inspect the gyro noise spectrum, and
+analyze the step response of the rate controller with latency metrics.
 
 - **Backend**: FastAPI + numpy/scipy/pandas, decodes logs with the
   official [`blackbox_decode`](https://github.com/betaflight/blackbox-tools)
@@ -10,6 +10,16 @@ rate controller with latency metrics.
   no build step. All charts: scroll = zoom X, Shift+scroll = zoom Y,
   drag = pan, double-click = reset. The three axis charts are
   synchronized on the time axis.
+- **Noise spectrum tab**: per-axis amplitude spectrum (Welch's method)
+  of the filtered and unfiltered gyro, for hunting noise sources and
+  setting the Betaflight gyro lowpass / dynamic notch / RPM filters. Each
+  axis chart carries its own independent set of frequency markers (not
+  synced across axes): add as many as you like ("+ Marker"), drag each
+  onto a peak to read its frequency, double-click it to set a label, and
+  remove them one at a time (×) or all at once ("Clear"). Every marker
+  gets its own color. The Y axis auto-frames to the noise band above
+  ~30 Hz, since low-frequency craft motion is orders of magnitude larger —
+  zoom out (Shift+scroll) to see it.
 - **Step response tab**: overlays the consensus curves of up to 8
   sessions, with per-axis latency bar charts and a metrics table (PID,
   latency, rise, peak, overshoot). After upload, the longest session is
@@ -65,10 +75,12 @@ backend/app/
   config.py                  paths/limits, overridable via PIDTUNER_* env vars
   api/routes_logs.py         POST /api/logs (upload), sessions, DELETE
   api/routes_gyro.py         GET .../gyro (binary format, min/max-decimated)
+  api/routes_spectrum.py     GET .../spectrum (JSON, Welch amplitude spectrum)
   api/routes_step_response.py GET .../step-response (JSON)
   services/blackbox_decoder.py  session split + blackbox_decode subprocess
   services/csv_parser.py     .bbl header ("H ..." lines) + CSV load + gyro_scale
   services/gyro_series.py    filtered/unfiltered per axis + decimation
+  services/spectrum.py       per-axis Welch amplitude spectrum (filtered/unfilt)
   services/step_response.py  Wiener deconvolution (port of PID-Analyzer)
   services/session_store.py  log registry + DataFrame LRU cache
   core/binary_pack.py        typed-array binary format for large time series
@@ -76,6 +88,7 @@ frontend/
   js/charts/zoomPlugin.js    wheel zoom/drag pan/reset + X-sync group
   js/charts/gyroChart.js     3x uPlot, switchable signals (gyro raw/
                              filtered, setpoint, error, P/I/D term)
+  js/charts/spectrumChart.js 3x uPlot + shared draggable harmonic marker
   js/charts/stepResponseChart.js  3x uPlot + latency/rise/overshoot
 ```
 

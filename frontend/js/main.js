@@ -1,5 +1,6 @@
-import { uploadLog, getGyro } from "./api.js";
+import { uploadLog, getGyro, getSpectrum } from "./api.js";
 import { renderGyro, destroyGyro } from "./charts/gyroChart.js";
+import { renderSpectrum, destroySpectrum } from "./charts/spectrumChart.js";
 import {
   initCompare, renderCompareTab, registerUploadedLog, selectForCompare,
   renameSessionByKey,
@@ -14,6 +15,7 @@ const state = {
   sessionId: null,
   sessions: [],
   gyroLoaded: false,
+  spectrumLoaded: false,
 };
 
 // ---- toast / banner ---------------------------------------------------
@@ -157,7 +159,9 @@ el("session-select").addEventListener("change", (e) => {
 async function selectSession(sessionId) {
   state.sessionId = sessionId;
   state.gyroLoaded = false;
+  state.spectrumLoaded = false;
   destroyGyro();
+  destroySpectrum();
   el("empty-state").classList.add("hidden");
 
   const session = state.sessions.find((s) => s.session_id === sessionId);
@@ -197,11 +201,17 @@ async function loadActiveTab() {
     renderCompareTab();
     return;
   }
-  if (state.logId == null || state.sessionId == null || state.gyroLoaded) return;
+  if (state.logId == null || state.sessionId == null) return;
   try {
-    const data = await getGyro(state.logId, state.sessionId);
-    renderGyro(el("gyro-charts"), data);
-    state.gyroLoaded = true;
+    if (tab === "gyro" && !state.gyroLoaded) {
+      const data = await getGyro(state.logId, state.sessionId);
+      renderGyro(el("gyro-charts"), data);
+      state.gyroLoaded = true;
+    } else if (tab === "spectrum" && !state.spectrumLoaded) {
+      const data = await getSpectrum(state.logId, state.sessionId);
+      renderSpectrum(el("spectrum-charts"), data);
+      state.spectrumLoaded = true;
+    }
   } catch (err) {
     toast(err.message);
   }

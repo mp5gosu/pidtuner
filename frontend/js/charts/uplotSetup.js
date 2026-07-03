@@ -72,7 +72,11 @@ export function makeMaximizable(box) {
 
 // ---- chart factory ------------------------------------------------------
 
-export function createChart(container, { title, series, height = 260, group = null, xLabel, extraPlugins = [] }) {
+// `yRange`: optional uPlot scale-range function `(u, dataMin, dataMax) => [min, max]`.
+// When given it governs the initial Y autoscale *and* the double-click reset
+// (the zoom plugin honors it), so a chart can frame itself to a band of
+// interest instead of the full data extent.
+export function createChart(container, { title, series, height = 260, group = null, xLabel, extraPlugins = [], yRange = null }) {
   const box = document.createElement("div");
   box.className = "chart-box";
   if (title) {
@@ -97,7 +101,7 @@ export function createChart(container, { title, series, height = 260, group = nu
     },
     scales: {
       x: { time: false },
-      y: {},
+      y: yRange ? { range: yRange } : {},
     },
     axes: [
       { ...AXIS_STYLE, label: xLabel, labelSize: 14 },

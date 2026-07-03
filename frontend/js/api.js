@@ -43,6 +43,12 @@ export async function getGyro(logId, sessionId) {
   return { series, extra: meta.extra };
 }
 
+export async function getSpectrum(logId, sessionId) {
+  const resp = await fetch(`/api/logs/${logId}/sessions/${sessionId}/spectrum`);
+  if (!resp.ok) throw new Error((await resp.json()).detail || "spectrum fetch failed");
+  return resp.json();
+}
+
 export async function getStepResponse(logId, sessionId) {
   const resp = await fetch(`/api/logs/${logId}/sessions/${sessionId}/step-response`);
   if (!resp.ok) throw new Error((await resp.json()).detail || "step-response fetch failed");

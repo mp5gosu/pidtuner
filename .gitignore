@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.venv/
+backend/bin/
+backend/data/
+vendor/
+uv.lock
+.claude/
+example_logs/

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PIDtuner — Betaflight Blackbox Analyzer</title>
+<link rel="stylesheet" href="/static/css/uPlot.min.css">
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<header>
+  <h1>PIDtuner</h1>
+  <div class="upload-area">
+    <input type="file" id="file-input" accept=".bbl,.bfl,.txt,.log" hidden>
+    <button id="upload-btn" class="primary">Upload log…</button>
+    <div id="upload-progress" class="progress hidden"><div class="bar"></div><span></span></div>
+    <select id="session-select" class="hidden"></select>
+    <button id="session-rename-btn" class="rename-btn session-rename-btn hidden" title="Rename session">✎</button>
+  </div>
+  <label class="sync-toggle" title="Apply time-axis zoom/pan to every chart in a tab">
+    <input type="checkbox" id="sync-toggle"> Link axes
+  </label>
+</header>
+
+<div id="banner" class="banner hidden"></div>
+
+<nav class="tabs">
+  <button class="tab active" data-tab="gyro">Gyro (filtered / unfiltered)</button>
+  <button class="tab" data-tab="compare">Step Response</button>
+</nav>
+
+<main>
+  <section id="tab-gyro" class="tab-panel active">
+    <p class="hint controls-hint">
+      <span class="ctl"><kbd>Scroll</kbd> Zoom time</span>
+      <span class="ctl"><kbd>Shift</kbd>+<kbd>Scroll</kbd> Zoom Y</span>
+      <span class="ctl"><kbd>Ctrl</kbd>+<kbd>Scroll</kbd> Zoom XY</span>
+      <span class="ctl"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Scroll</kbd> Zoom X</span>
+      <span class="ctl"><kbd>Alt</kbd>+<kbd>Scroll</kbd> Pan ⇄</span>
+      <span class="ctl"><kbd>Drag</kbd> Pan</span>
+      <span class="ctl"><kbd>Alt</kbd>+<kbd>Drag</kbd> Box zoom</span>
+      <span class="ctl"><kbd>Double-click</kbd> Reset</span>
+    </p>
+    <div id="gyro-controls" class="signal-toggles"></div>
+    <div id="session-info" class="session-info"></div>
+    <div id="gyro-charts" class="charts"></div>
+  </section>
+  <section id="tab-compare" class="tab-panel">
+    <p class="hint">Step response of the rate controller (Wiener deconvolution, consensus across all flight windows). After upload the longest session is shown automatically; up to 8 sessions from the currently uploaded logs can be overlaid.</p>
+    <p class="hint controls-hint">
+      <span class="ctl"><kbd>Scroll</kbd> Zoom time</span>
+      <span class="ctl"><kbd>Shift</kbd>+<kbd>Scroll</kbd> Zoom Y</span>
+      <span class="ctl"><kbd>Ctrl</kbd>+<kbd>Scroll</kbd> Zoom XY</span>
+      <span class="ctl"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Scroll</kbd> Zoom X</span>
+      <span class="ctl"><kbd>Alt</kbd>+<kbd>Scroll</kbd> Pan ⇄</span>
+      <span class="ctl"><kbd>Drag</kbd> Pan</span>
+      <span class="ctl"><kbd>Alt</kbd>+<kbd>Drag</kbd> Box zoom</span>
+      <span class="ctl"><kbd>Double-click</kbd> Reset</span>
+    </p>
+    <div id="compare-picker" class="compare-picker"></div>
+    <div id="compare-charts" class="charts"></div>
+  </section>
+  <div id="empty-state" class="empty-state">
+    <p>No log loaded.</p>
+    <p>Upload a Betaflight blackbox log (<code>.bbl</code> / <code>.bfl</code>) to get started.</p>
+  </div>
+</main>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="/static/js/vendor/uPlot.iife.min.js"></script>
+<script type="module" src="/static/js/main.js"></script>
+</body>
+</html>

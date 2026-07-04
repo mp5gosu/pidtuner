@@ -1,8 +1,9 @@
 # PIDtuner
 
 A lean, browser-based PIDtoolbox clone: upload Betaflight Blackbox logs,
-compare filtered/unfiltered gyro, inspect the gyro noise spectrum, and
-analyze the step response of the rate controller with latency metrics.
+compare filtered/unfiltered gyro, inspect the gyro noise spectrum, see how
+noise varies with throttle, and analyze the step response of the rate
+controller with latency metrics.
 
 - **Backend**: FastAPI + numpy/scipy/pandas, decodes logs with the
   official [`blackbox_decode`](https://github.com/betaflight/blackbox-tools)
@@ -20,6 +21,17 @@ analyze the step response of the rate controller with latency metrics.
   gets its own color. The Y axis auto-frames to the noise band above
   ~30 Hz, since low-frequency craft motion is orders of magnitude larger —
   zoom out (Shift+scroll) to see it.
+- **Noise vs. Throttle tab**: a throttle&nbsp;×&nbsp;frequency spectrogram of
+  the gyro per axis (PIDtoolbox's "throttle x frequency" view). Each short-time
+  spectrum is binned by the throttle it was recorded at, so throttle-dependent
+  noise stands out — motor/frame resonances that ramp with RPM appear as
+  diagonal ridges, telling you *which throttle band* a peak lives in. Switch
+  the shared control between raw and filtered gyro (both share one colour scale,
+  so the filter's effect is obvious), drag the scale slider to set the colour
+  ceiling, toggle "&lt;&nbsp;100&nbsp;Hz" to zoom the low band, and hover any
+  heatmap to read throttle&nbsp;·&nbsp;Hz&nbsp;·&nbsp;amplitude. Throttle is
+  taken from `rcCommand[3]` (`(v-1000)/10` → 0–100&nbsp;%), falling back to
+  `setpoint[3]`. Rendered on a plain canvas (uPlot has no heatmap).
 - **Step response tab**: overlays the consensus curves of up to 8
   sessions, with per-axis latency bar charts and a metrics table (PID,
   latency, rise, peak, overshoot). After upload, the longest session is
@@ -76,11 +88,13 @@ backend/app/
   api/routes_logs.py         POST /api/logs (upload), sessions, DELETE
   api/routes_gyro.py         GET .../gyro (binary format, min/max-decimated)
   api/routes_spectrum.py     GET .../spectrum (JSON, Welch amplitude spectrum)
+  api/routes_noise_throttle.py GET .../noise-throttle (binary, freq x throttle maps)
   api/routes_step_response.py GET .../step-response (JSON)
   services/blackbox_decoder.py  session split + blackbox_decode subprocess
   services/csv_parser.py     .bbl header ("H ..." lines) + CSV load + gyro_scale
   services/gyro_series.py    filtered/unfiltered per axis + decimation
   services/spectrum.py       per-axis Welch amplitude spectrum (filtered/unfilt)
+  services/noise_throttle.py per-axis STFT spectrogram binned by throttle
   services/step_response.py  Wiener deconvolution (port of PID-Analyzer)
   services/session_store.py  log registry + DataFrame LRU cache
   core/binary_pack.py        typed-array binary format for large time series
@@ -89,6 +103,7 @@ frontend/
   js/charts/gyroChart.js     3x uPlot, switchable signals (gyro raw/
                              filtered, setpoint, error, P/I/D term)
   js/charts/spectrumChart.js 3x uPlot + shared draggable harmonic marker
+  js/charts/noiseThrottleChart.js 3x canvas heatmap + signal/scale/band controls
   js/charts/stepResponseChart.js  3x uPlot + latency/rise/overshoot
 ```
 

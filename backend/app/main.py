@@ -6,7 +6,13 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import config
-from .api import routes_gyro, routes_logs, routes_spectrum, routes_step_response
+from .api import (
+    routes_gyro,
+    routes_logs,
+    routes_noise_throttle,
+    routes_spectrum,
+    routes_step_response,
+)
 from .services import blackbox_decoder, session_store
 
 logging.basicConfig(level=logging.INFO)
@@ -29,6 +35,7 @@ app = FastAPI(title="PIDtuner", lifespan=lifespan)
 app.include_router(routes_logs.router)
 app.include_router(routes_gyro.router)
 app.include_router(routes_spectrum.router)
+app.include_router(routes_noise_throttle.router)
 app.include_router(routes_step_response.router)
 
 

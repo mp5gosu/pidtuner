@@ -43,6 +43,26 @@ export async function getGyro(logId, sessionId) {
   return { series, extra: meta.extra };
 }
 
+// Parses the binary series format from core/binary_pack.py for the
+// throttle x frequency maps. Grids arrive flat (row-major, freq-major) and are
+// kept as flat Float32Array views plus their shape in meta.extra.
+export async function getNoiseThrottle(logId, sessionId) {
+  const resp = await fetch(`/api/logs/${logId}/sessions/${sessionId}/noise-throttle`);
+  if (!resp.ok) throw new Error((await resp.json()).detail || "noise-throttle fetch failed");
+  const buf = await resp.arrayBuffer();
+
+  const metaLen = new DataView(buf).getUint32(0, true);
+  const meta = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 4, metaLen)));
+
+  const payloadStart = 4 + metaLen;
+  const series = {};
+  for (const s of meta.series) {
+    const [Ctor] = DTYPES[s.dtype];
+    series[s.name] = new Ctor(buf, payloadStart + s.offset, s.points);
+  }
+  return { series, extra: meta.extra };
+}
+
 export async function getSpectrum(logId, sessionId) {
   const resp = await fetch(`/api/logs/${logId}/sessions/${sessionId}/spectrum`);
   if (!resp.ok) throw new Error((await resp.json()).detail || "spectrum fetch failed");

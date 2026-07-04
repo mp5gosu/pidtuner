@@ -27,6 +27,7 @@
 <nav class="tabs">
   <button class="tab active" data-tab="gyro">Gyro (filtered / unfiltered)</button>
   <button class="tab" data-tab="spectrum">Noise Spectrum</button>
+  <button class="tab" data-tab="noise">Noise vs. Throttle</button>
   <button class="tab" data-tab="compare">Step Response</button>
 </nav>
 
@@ -67,6 +68,23 @@
     </p>
     <div id="spectrum-controls" class="signal-toggles"></div>
     <div id="spectrum-charts" class="charts"></div>
+  </section>
+  <section id="tab-noise" class="tab-panel">
+    <p class="hint">Throttle&nbsp;×&nbsp;frequency spectrogram of the gyro, per axis
+      (like PIDtoolbox). Each short-time spectrum is binned by the throttle it was
+      recorded at, so throttle-dependent noise stands out: motor/frame resonances
+      that ramp with RPM appear as diagonal ridges. Use it to see <em>which
+      throttle band</em> a peak lives in and whether the gyro&nbsp;lowpass /
+      dynamic&nbsp;notch / RPM filter tames it there. Switch between the raw and
+      filtered gyro to judge the filter's effect (both share one colour scale).</p>
+    <p class="hint controls-hint">
+      <span class="ctl"><kbd>Hover</kbd> Read throttle · Hz · amplitude</span>
+      <span class="ctl"><kbd>Scale</kbd> Colour-scale ceiling</span>
+      <span class="ctl"><kbd>&lt; 100 Hz</kbd> Zoom low band</span>
+      <span class="ctl"><kbd>⛶</kbd> Maximize</span>
+    </p>
+    <div id="noise-controls" class="signal-toggles"></div>
+    <div id="noise-charts" class="charts"></div>
   </section>
   <section id="tab-compare" class="tab-panel">
     <p class="hint">Step response of the rate controller (Wiener deconvolution, consensus across all flight windows). After upload the longest session is shown automatically; up to 8 sessions from the currently uploaded logs can be overlaid.</p>

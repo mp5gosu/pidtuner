@@ -487,6 +487,42 @@ main { padding: 12px 16px; }
 .spec-marker-close:hover { color: var(--danger); }
 .spec-rename { width: 120px; font-size: 10px; padding: 0 4px; }
 
+/* noise-vs-throttle tab: canvas heatmaps + shared controls */
+/* cap each heatmap's width so it isn't stretched across the whole window
+   (keeps a spectrogram-like aspect); maximized boxes are exempt */
+#noise-charts .chart-box:not(.maximized) { max-width: 640px; }
+.nt-el { position: relative; }
+.nt-el canvas { display: block; width: 100%; cursor: crosshair; }
+.nt-tip {
+  position: absolute;
+  pointer-events: none;
+  background: rgba(20, 23, 28, 0.9);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  white-space: nowrap;
+  z-index: 5;
+}
+.nt-seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.nt-seg-btn {
+  border: none;
+  border-radius: 0;
+  border-right: 1px solid var(--border);
+  padding: 5px 12px;
+  font-size: 13px;
+  color: var(--text-dim);
+  background: transparent;
+}
+.nt-seg-btn:last-child { border-right: none; }
+.nt-seg-btn:hover { color: var(--text); border-color: var(--border); }
+.nt-seg-btn.active { background: var(--accent); color: #0b1117; font-weight: 600; }
+.nt-scale { gap: 8px; }
+.nt-scale input[type="range"] { width: 130px; accent-color: var(--accent); }
+.nt-scale-val { font-variant-numeric: tabular-nums; min-width: 42px; }
+
 .hidden { display: none !important; }
 
 /* uPlot dark-theme adjustments */

@@ -1,6 +1,7 @@
-import { uploadLog, getGyro, getSpectrum } from "./api.js";
+import { uploadLog, getGyro, getSpectrum, getNoiseThrottle } from "./api.js";
 import { renderGyro, destroyGyro } from "./charts/gyroChart.js";
 import { renderSpectrum, destroySpectrum } from "./charts/spectrumChart.js";
+import { renderNoiseThrottle, destroyNoiseThrottle } from "./charts/noiseThrottleChart.js";
 import {
   initCompare, renderCompareTab, registerUploadedLog, selectForCompare,
   renameSessionByKey,
@@ -16,6 +17,7 @@ const state = {
   sessions: [],
   gyroLoaded: false,
   spectrumLoaded: false,
+  noiseLoaded: false,
 };
 
 // ---- toast / banner ---------------------------------------------------
@@ -160,8 +162,10 @@ async function selectSession(sessionId) {
   state.sessionId = sessionId;
   state.gyroLoaded = false;
   state.spectrumLoaded = false;
+  state.noiseLoaded = false;
   destroyGyro();
   destroySpectrum();
+  destroyNoiseThrottle();
   el("empty-state").classList.add("hidden");
 
   const session = state.sessions.find((s) => s.session_id === sessionId);
@@ -211,6 +215,10 @@ async function loadActiveTab() {
       const data = await getSpectrum(state.logId, state.sessionId);
       renderSpectrum(el("spectrum-charts"), data);
       state.spectrumLoaded = true;
+    } else if (tab === "noise" && !state.noiseLoaded) {
+      const data = await getNoiseThrottle(state.logId, state.sessionId);
+      renderNoiseThrottle(el("noise-charts"), data);
+      state.noiseLoaded = true;
     }
   } catch (err) {
     toast(err.message);

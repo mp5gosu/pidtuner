@@ -421,6 +421,7 @@ main { padding: 12px 16px; }
 .compare-table td { padding: 3px 8px 3px 0; border-bottom: 1px solid var(--border); }
 .compare-table tr:last-child td { border-bottom: none; }
 .compare-table .color-chip { vertical-align: middle; }
+.best-badge { font-size: 11px; cursor: help; }
 .dim { color: var(--text-dim); }
 
 /* noise-spectrum tab: per-chart frequency markers */

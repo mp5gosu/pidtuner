@@ -317,25 +317,85 @@ function latencyBox(axis) {
   return box;
 }
 
-function metricsTable(axis) {
+// The three metrics that define "good" step-response performance, all
+// lower-is-better, so they share one normalization direction.
+const SCORED_METRICS = ["delay_ms", "rise_time_ms", "overshoot_pct"];
+
+// Rank the compared sessions and return the key of the single best one — the
+// configuration with the best all-round step response (low overshoot, low
+// latency, low rise time). Returns null when a winner isn't meaningful.
+//
+// A session whose step response couldn't be measured (all metrics missing) is
+// ignored rather than treated as a loser — it must not suppress the ranking of
+// the sessions that DO have data. Among the remaining "rankable" sessions we
+// score on the (axis, metric) cells they all share, so each is judged on equal
+// footing: per cell, min-max normalize across those sessions (best value -> 0,
+// worst -> 1) and sum. A cell where every session matches adds zero and can't
+// skew the result. Lowest total wins; a dead tie yields no winner.
+function bestSessionKey() {
+  const entries = [...selected.entries()]; // [key, {label,color,data}]
+  if (entries.length < 2) return null;
+
+  const isNum = (v) => typeof v === "number" && isFinite(v);
+  const cells = [];
+  for (const axis of AXES) {
+    for (const metric of SCORED_METRICS) {
+      cells.push(entries.map(([, s]) => {
+        const d = s.data.axes[axis];
+        const v = d && !d.error ? d.metrics[metric] : null;
+        return isNum(v) ? v : null;
+      }));
+    }
+  }
+
+  const rankable = entries
+    .map((_, i) => (cells.some((c) => c[i] != null) ? i : -1))
+    .filter((i) => i >= 0);
+  if (rankable.length < 2) return null;
+
+  const scores = rankable.map(() => 0);
+  let commonCells = 0;
+  for (const c of cells) {
+    if (!rankable.every((i) => c[i] != null)) continue; // not shared by all
+    commonCells++;
+    const vals = rankable.map((i) => c[i]);
+    const min = Math.min(...vals), span = Math.max(...vals) - min;
+    if (span > 0) rankable.forEach((i, k) => { scores[k] += (c[i] - min) / span; });
+  }
+  if (!commonCells) return null;
+
+  let best = 0;
+  for (let k = 1; k < scores.length; k++) if (scores[k] < scores[best]) best = k;
+  if (scores.every((s) => s === scores[best])) return null; // no separation
+  return entries[rankable[best]][0];
+}
+
+const BEST_TITLE =
+  "Best all-round step response: lowest combined latency, rise time and " +
+  "overshoot across the compared sessions.";
+
+function metricsTable(axis, bestKey) {
   const table = document.createElement("table");
   table.className = "compare-table";
   table.innerHTML =
     "<thead><tr><th></th><th>Session</th><th>PID</th><th>Latency</th>" +
     "<th>Rise</th><th>Peak</th><th>Overshoot</th></tr></thead>";
   const tbody = document.createElement("tbody");
-  for (const { label, color, data } of selected.values()) {
+  for (const [key, { label, color, data }] of selected.entries()) {
     const d = data.axes[axis];
+    const heart = key === bestKey
+      ? `<span class="best-badge" title="${BEST_TITLE}">❤️</span> `
+      : "";
     const tr = document.createElement("tr");
     if (d?.error || !d) {
       tr.innerHTML = `<td><span class="color-chip" style="background:${color}"></span></td>` +
-        `<td>${label}</td><td colspan="5" class="dim">${d?.error ?? "-"}</td>`;
+        `<td>${heart}${label}</td><td colspan="5" class="dim">${d?.error ?? "-"}</td>`;
     } else {
       const m = d.metrics;
       const fmt = (v, u = "") => (v == null ? "–" : `${v}${u}`);
       tr.innerHTML =
         `<td><span class="color-chip" style="background:${color}"></span></td>` +
-        `<td>${label}</td>` +
+        `<td>${heart}${label}</td>` +
         `<td>${d.pid ? d.pid.split(",").slice(0, 3).join("/") : "–"}</td>` +
         `<td>${fmt(m.delay_ms, " ms")}</td>` +
         `<td>${fmt(m.rise_time_ms, " ms")}</td>` +
@@ -509,6 +569,8 @@ function renderCharts(container) {
 
   container.appendChild(buildConfigBox());
 
+  const bestKey = bestSessionKey();
+
   const latencyRow = document.createElement("div");
   latencyRow.className = "charts charts-row";
   for (const axis of AXES) latencyRow.appendChild(latencyBox(axis));
@@ -544,7 +606,7 @@ function renderCharts(container) {
     });
     chart.u.setData(chartData);
     chart.u.setScale("y", { min: -0.2, max: 2.0 });
-    chart.box.appendChild(metricsTable(axis));
+    chart.box.appendChild(metricsTable(axis, bestKey));
     charts.push(chart);
   }
 }

@@ -34,8 +34,12 @@ controller with latency metrics.
   `setpoint[3]`. Rendered on a plain canvas (uPlot has no heatmap).
 - **Step response tab**: overlays the consensus curves of up to 8
   sessions, with per-axis latency bar charts and a metrics table (PID,
-  latency, rise, peak, overshoot). After upload, the longest session is
-  displayed automatically. Only the logs of the current browser session
+  latency, rise, peak, overshoot). When two or more measurable sessions
+  are compared, a ❤️ marks the best all-round configuration — the one
+  with the lowest combined latency, rise time and overshoot (each metric
+  min-max normalized across the compared sessions, summed over the axes
+  they share). After upload, the longest session is displayed
+  automatically. Only the logs of the current browser session
   are visible; on the server side, uploads remain as an invisible
   decode/dedup cache (which makes duplicate uploads finish instantly)
   and are cleaned up on startup after `PIDTUNER_DATA_TTL_DAYS`

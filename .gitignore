@@ -7,3 +7,4 @@ vendor/
 uv.lock
 .claude/
 example_logs/
+CLAUDE.md

@@ -3,7 +3,7 @@ __pycache__/
 .venv/
 backend/bin/
 backend/data/
-vendor/
+/vendor/
 uv.lock
 .claude/
 example_logs/

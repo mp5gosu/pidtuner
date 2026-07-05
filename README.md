@@ -84,24 +84,34 @@ The image runs uvicorn with **one worker** (the caches are process-local).
 Configure via environment variables in [`docker-compose.yml`](docker-compose.yml)
 (`PIDTUNER_DATA_TTL_DAYS`, `PIDTUNER_MAX_UPLOAD_BYTES`, …).
 
-**TrueNAS Scale** (Apps → *Custom App* → *Install via YAML*) needs a prebuilt
-image, since the YAML editor has no build context. Build it once, then reference
-it by name:
+### Automated builds (GitHub Actions → ghcr.io)
 
-```bash
-git clone <repo> /mnt/<pool>/apps/pidtuner/src
-cd /mnt/<pool>/apps/pidtuner/src
-docker build -t pidtuner:latest .
+[`.github/workflows/docker-publish.yml`](.github/workflows/docker-publish.yml)
+builds and pushes the image to the GitHub Container Registry on every push to
+`develop`/`main`, on `v*` tags, and on manual dispatch — no secrets to set up
+(it uses the built-in `GITHUB_TOKEN`). Published image:
+
+```
+ghcr.io/mp5gosu/pidtuner:latest      # tracks the default branch
+ghcr.io/mp5gosu/pidtuner:v1.2.3      # from a `git tag v1.2.3`
 ```
 
-Paste [`docker-compose.yml`](docker-compose.yml) with the `image: pidtuner:latest`
-line active (and `build: .` removed), and point the `/data` mount at a dataset for
-persistence:
+Packages are private by default; make the package public (or log in with a PAT)
+if TrueNAS should pull without credentials.
+
+### TrueNAS Scale
+
+Apps → *Custom App* → *Install via YAML*. The YAML editor has no build context,
+so use the prebuilt image above — paste [`docker-compose.yml`](docker-compose.yml)
+with the `image: ghcr.io/mp5gosu/pidtuner:latest` line active (and `build: .`
+removed), and point the `/data` mount at a dataset for persistence:
 
 ```yaml
 volumes:
   - /mnt/<pool>/apps/pidtuner/data:/data
 ```
+
+To build locally instead (no registry), run `docker build -t pidtuner:latest .`.
 
 > The image build clones `betaflight/blackbox-tools` from GitHub, so it needs
 > network access **at build time**; the running container is fully offline.

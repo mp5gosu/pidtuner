@@ -1,21 +1,16 @@
 # PIDtuner — deploy on TrueNAS Scale (Apps → "Custom App" → "Install via YAML")
 # or anywhere with `docker compose up -d`.
 #
-# TrueNAS note: the "Custom App" YAML editor needs a build context on the host,
-# so the simplest path is to build the image once and reference it by name:
-#
-#     git clone <this repo> /mnt/<pool>/apps/pidtuner/src
-#     cd /mnt/<pool>/apps/pidtuner/src
-#     docker build -t pidtuner:latest .
-#
-# then paste this file with the `image:` line active and the `build:` line
-# removed. For a plain `docker compose up` from the repo, leave `build: .` as-is.
+# TrueNAS note: the "Custom App" YAML editor has no build context, so use a
+# prebuilt image. GitHub Actions publishes one automatically on every push to
+# ghcr.io/mp5gosu/pidtuner — just activate the `image:` line below and remove
+# `build: .`. For a plain `docker compose up` from the repo, leave `build:` as-is.
 
 services:
   pidtuner:
     container_name: pidtuner
     build: .
-    # image: pidtuner:latest      # ← use instead of `build:` on TrueNAS (see note above)
+    # image: ghcr.io/mp5gosu/pidtuner:latest   # ← use instead of `build:` on TrueNAS
     restart: unless-stopped
     ports:
       - "8000:8000"               # host:container — change the host port if 8000 is taken

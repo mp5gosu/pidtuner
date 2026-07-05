@@ -1,0 +1,41 @@
+# PIDtuner — deploy on TrueNAS Scale (Apps → "Custom App" → "Install via YAML")
+# or anywhere with `docker compose up -d`.
+#
+# TrueNAS note: the "Custom App" YAML editor needs a build context on the host,
+# so the simplest path is to build the image once and reference it by name:
+#
+#     git clone <this repo> /mnt/<pool>/apps/pidtuner/src
+#     cd /mnt/<pool>/apps/pidtuner/src
+#     docker build -t pidtuner:latest .
+#
+# then paste this file with the `image:` line active and the `build:` line
+# removed. For a plain `docker compose up` from the repo, leave `build: .` as-is.
+
+services:
+  pidtuner:
+    container_name: pidtuner
+    build: .
+    # image: pidtuner:latest      # ← use instead of `build:` on TrueNAS (see note above)
+    restart: unless-stopped
+    ports:
+      - "8000:8000"               # host:container — change the host port if 8000 is taken
+    environment:
+      # Server-side storage is only a decode/dedup cache; entries older than
+      # this many days are pruned on startup (0 disables cleanup).
+      PIDTUNER_DATA_TTL_DAYS: "14"
+      # Max upload size in bytes (default 512 MiB).
+      PIDTUNER_MAX_UPLOAD_BYTES: "536870912"
+    volumes:
+      - pidtuner-data:/data
+      # TrueNAS bind-mount alternative — point at a dataset instead of the
+      # named volume, then delete the `pidtuner-data` volume block below:
+      # - /mnt/<pool>/apps/pidtuner/data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/', timeout=5).status == 200 else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  pidtuner-data:

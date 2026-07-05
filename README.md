@@ -69,6 +69,43 @@ existing binary, for example from a Betaflight Configurator installation:
 export PIDTUNER_BLACKBOX_DECODE_BIN=/path/to/blackbox_decode
 ```
 
+## Docker / TrueNAS Scale
+
+A multi-stage [`Dockerfile`](Dockerfile) builds `blackbox_decode` from source
+and bakes it into a slim Python runtime together with the backend and frontend —
+no `uv`, `gcc` or binary juggling on the host. The container serves on port
+`8000` and persists its decode/dedup cache in the `/data` volume.
+
+```bash
+docker compose up -d          # build + run, http://localhost:8000
+```
+
+The image runs uvicorn with **one worker** (the caches are process-local).
+Configure via environment variables in [`docker-compose.yml`](docker-compose.yml)
+(`PIDTUNER_DATA_TTL_DAYS`, `PIDTUNER_MAX_UPLOAD_BYTES`, …).
+
+**TrueNAS Scale** (Apps → *Custom App* → *Install via YAML*) needs a prebuilt
+image, since the YAML editor has no build context. Build it once, then reference
+it by name:
+
+```bash
+git clone <repo> /mnt/<pool>/apps/pidtuner/src
+cd /mnt/<pool>/apps/pidtuner/src
+docker build -t pidtuner:latest .
+```
+
+Paste [`docker-compose.yml`](docker-compose.yml) with the `image: pidtuner:latest`
+line active (and `build: .` removed), and point the `/data` mount at a dataset for
+persistence:
+
+```yaml
+volumes:
+  - /mnt/<pool>/apps/pidtuner/data:/data
+```
+
+> The image build clones `betaflight/blackbox-tools` from GitHub, so it needs
+> network access **at build time**; the running container is fully offline.
+
 ## Important: unfiltered gyro requires the right log configuration
 
 The filtered/unfiltered comparison only works if the log contains

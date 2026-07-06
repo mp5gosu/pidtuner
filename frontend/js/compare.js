@@ -1,7 +1,7 @@
 // Step-Response tab: overlay consensus curves of selected sessions plus
 // per-axis latency bars and a metrics table. Shows only logs uploaded in
-// the current browser session (the server keeps old uploads solely as a
-// decode/dedup cache - they never appear here).
+// this browser session; the server holds uploads ephemerally and isolated
+// per user (see routes_logs / session_store), never shared across tabs.
 
 import { getStepResponse, renameSession } from "./api.js";
 import { createChart, makeMaximizable, closeMaximized } from "./charts/uplotSetup.js";
@@ -25,6 +25,17 @@ let cfgShowAll = localStorage.getItem("pidtuner-cfg-showall") === "1";
 export function initCompare(toast) {
   toastFn = toast;
 }
+
+// Ephemeral storage: when this tab closes or reloads, delete its own uploads
+// from the server so nothing lingers for other users. keepalive lets the
+// request outlive the page. (The server also wipes on startup + reaps by TTL.)
+window.addEventListener("pagehide", () => {
+  for (const log of uploadedLogs) {
+    try {
+      fetch(`/api/logs/${log.log_id}`, { method: "DELETE", keepalive: true });
+    } catch { /* best effort */ }
+  }
+});
 
 function sessionKey(logId, sid) {
   return `${logId}:${sid}`;
@@ -570,18 +581,15 @@ function renderCharts(container) {
   container.appendChild(buildConfigBox());
 
   const bestKey = bestSessionKey();
-
-  const latencyRow = document.createElement("div");
-  latencyRow.className = "charts charts-row";
-  for (const axis of AXES) latencyRow.appendChild(latencyBox(axis));
-  container.appendChild(latencyRow);
-
-  const curveRow = document.createElement("div");
-  curveRow.className = "charts charts-row";
-  container.appendChild(curveRow);
-
   const group = makeSyncGroup();
+
+  // One row per axis: the step-response curve on the left, its latency bars
+  // directly to the right (they stack on narrow/mobile viewports via CSS).
   for (const axis of AXES) {
+    const row = document.createElement("div");
+    row.className = "sr-pair";
+    container.appendChild(row);
+
     const entries = [...selected.values()].filter(
       (s) => s.data.axes[axis] && !s.data.axes[axis].error
     );
@@ -596,7 +604,7 @@ function renderCharts(container) {
       chartData.push(resample(d.time_ms, d.consensus));
     }
 
-    const chart = createChart(curveRow, {
+    const chart = createChart(row, {
       title: `Step Response ${axis}`,
       series,
       height: 280,
@@ -606,7 +614,12 @@ function renderCharts(container) {
     });
     chart.u.setData(chartData);
     chart.u.setScale("y", { min: -0.2, max: 2.0 });
+    chart.box.classList.add("sr-curve");
     chart.box.appendChild(metricsTable(axis, bestKey));
     charts.push(chart);
+
+    const lat = latencyBox(axis);
+    lat.classList.add("sr-latency");
+    row.appendChild(lat);
   }
 }

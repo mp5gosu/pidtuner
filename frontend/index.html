@@ -22,10 +22,12 @@
   </label>
 </header>
 
+<div id="meta-summary" class="meta-summary"></div>
+
 <div id="banner" class="banner hidden"></div>
 
 <nav class="tabs">
-  <button class="tab active" data-tab="gyro">Gyro (filtered / unfiltered)</button>
+  <button class="tab active" data-tab="gyro">Gyro</button>
   <button class="tab" data-tab="spectrum">Noise Spectrum</button>
   <button class="tab" data-tab="noise">Noise vs. Throttle</button>
   <button class="tab" data-tab="compare">Step Response</button>
@@ -33,71 +35,81 @@
 
 <main>
   <section id="tab-gyro" class="tab-panel active">
-    <p class="hint controls-hint">
-      <span class="ctl"><kbd>Scroll</kbd> Zoom time</span>
-      <span class="ctl"><kbd>Shift</kbd>+<kbd>Scroll</kbd> Zoom Y</span>
-      <span class="ctl"><kbd>Ctrl</kbd>+<kbd>Scroll</kbd> Zoom XY</span>
-      <span class="ctl"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Scroll</kbd> Zoom X</span>
-      <span class="ctl"><kbd>Alt</kbd>+<kbd>Scroll</kbd> Pan ⇄</span>
-      <span class="ctl"><kbd>Drag</kbd> Pan</span>
-      <span class="ctl"><kbd>Alt</kbd>+<kbd>Drag</kbd> Box zoom</span>
-      <span class="ctl"><kbd>Double-click</kbd> Reset</span>
-    </p>
+    <details class="controls-help">
+      <summary>Controls &amp; shortcuts</summary>
+      <p class="controls-hint">
+        <span class="ctl"><kbd>Scroll</kbd> Zoom time</span>
+        <span class="ctl"><kbd>Shift</kbd>+<kbd>Scroll</kbd> Zoom Y</span>
+        <span class="ctl"><kbd>Ctrl</kbd>+<kbd>Scroll</kbd> Zoom XY</span>
+        <span class="ctl"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Scroll</kbd> Zoom X</span>
+        <span class="ctl"><kbd>Alt</kbd>+<kbd>Scroll</kbd> Pan ⇄</span>
+        <span class="ctl"><kbd>Drag</kbd> Pan</span>
+        <span class="ctl"><kbd>Alt</kbd>+<kbd>Drag</kbd> Box zoom</span>
+        <span class="ctl"><kbd>Double-click</kbd> Reset</span>
+        <span class="ctl"><kbd>2 fingers</kbd> Pan/zoom</span>
+        <span class="ctl"><kbd>Double-tap</kbd> Reset</span>
+      </p>
+    </details>
     <div id="gyro-controls" class="signal-toggles"></div>
     <div id="session-info" class="session-info"></div>
     <div id="gyro-charts" class="charts"></div>
   </section>
   <section id="tab-spectrum" class="tab-panel">
-    <p class="hint">Averaged amplitude spectrum (Welch) of the gyro per axis — for
-      hunting noise sources and setting the Betaflight gyro&nbsp;lowpass /
-      dynamic&nbsp;notch / RPM filter. Each chart has its own markers: click
-      <b>+&nbsp;Marker</b>, drag it onto a peak to read its frequency,
-      double-click it to add a label, <b>×</b> to remove one (or <b>Clear</b> for
-      all). The Y axis is framed to the noise band — low-frequency craft motion
-      runs off the top; <kbd>Shift</kbd>+<kbd>Scroll</kbd> out to see it.</p>
-    <p class="hint controls-hint">
-      <span class="ctl"><kbd>+ Marker</kbd> Add marker</span>
-      <span class="ctl"><kbd>Drag pill</kbd> Move · read Hz</span>
-      <span class="ctl"><kbd>Double-click pill</kbd> Label</span>
-      <span class="ctl"><kbd>Scroll</kbd> Zoom freq</span>
-      <span class="ctl"><kbd>Shift</kbd>+<kbd>Scroll</kbd> Zoom Y</span>
-      <span class="ctl"><kbd>Alt</kbd>+<kbd>Scroll</kbd> Pan ⇄</span>
-      <span class="ctl"><kbd>Drag</kbd> Pan</span>
-      <span class="ctl"><kbd>Alt</kbd>+<kbd>Drag</kbd> Box zoom</span>
-      <span class="ctl"><kbd>Double-click</kbd> Reset</span>
-    </p>
+    <p class="help">Per-axis noise spectrum (Welch). Drop markers on peaks to read
+      their frequency and tune your gyro&nbsp;lowpass / dynamic&nbsp;notch / RPM
+      filters. Y is framed to the noise band — <kbd>Shift</kbd>+<kbd>Scroll</kbd>
+      out to see low-frequency motion.</p>
+    <details class="controls-help">
+      <summary>Controls &amp; shortcuts</summary>
+      <p class="controls-hint">
+        <span class="ctl"><kbd>+ Marker</kbd> Add marker</span>
+        <span class="ctl"><kbd>Drag line/pill</kbd> Move · read Hz</span>
+        <span class="ctl"><kbd>Double-click pill</kbd> Label</span>
+        <span class="ctl"><kbd>Scroll</kbd> Zoom freq</span>
+        <span class="ctl"><kbd>Shift</kbd>+<kbd>Scroll</kbd> Zoom Y</span>
+        <span class="ctl"><kbd>Alt</kbd>+<kbd>Scroll</kbd> Pan ⇄</span>
+        <span class="ctl"><kbd>Drag</kbd> Pan</span>
+        <span class="ctl"><kbd>Alt</kbd>+<kbd>Drag</kbd> Box zoom</span>
+        <span class="ctl"><kbd>Double-click</kbd> Reset</span>
+      </p>
+    </details>
     <div id="spectrum-controls" class="signal-toggles"></div>
     <div id="spectrum-charts" class="charts"></div>
   </section>
   <section id="tab-noise" class="tab-panel">
-    <p class="hint">Throttle&nbsp;×&nbsp;frequency spectrogram of the gyro, per axis
-      (like PIDtoolbox). Each short-time spectrum is binned by the throttle it was
-      recorded at, so throttle-dependent noise stands out: motor/frame resonances
-      that ramp with RPM appear as diagonal ridges. Use it to see <em>which
-      throttle band</em> a peak lives in and whether the gyro&nbsp;lowpass /
-      dynamic&nbsp;notch / RPM filter tames it there. Switch between the raw and
-      filtered gyro to judge the filter's effect (both share one colour scale).</p>
-    <p class="hint controls-hint">
-      <span class="ctl"><kbd>Hover</kbd> Read throttle · Hz · amplitude</span>
-      <span class="ctl"><kbd>Scale</kbd> Colour-scale ceiling</span>
-      <span class="ctl"><kbd>&lt; 100 Hz</kbd> Zoom low band</span>
-      <span class="ctl"><kbd>⛶</kbd> Maximize</span>
-    </p>
+    <p class="help">Gyro noise binned by throttle, per axis. Resonances that ramp
+      with RPM show up as diagonal ridges — spot <em>which throttle band</em> a
+      peak lives in. Toggle raw/filtered (shared colour scale) to judge your
+      filters.</p>
+    <details class="controls-help">
+      <summary>Controls &amp; shortcuts</summary>
+      <p class="controls-hint">
+        <span class="ctl"><kbd>Hover / tap</kbd> Read throttle · Hz · amplitude</span>
+        <span class="ctl"><kbd>Scale</kbd> Colour-scale ceiling</span>
+        <span class="ctl"><kbd>&lt; 100 Hz</kbd> Zoom low band</span>
+        <span class="ctl"><kbd>⛶</kbd> Maximize</span>
+      </p>
+    </details>
     <div id="noise-controls" class="signal-toggles"></div>
     <div id="noise-charts" class="charts"></div>
   </section>
   <section id="tab-compare" class="tab-panel">
-    <p class="hint">Step response of the rate controller (Wiener deconvolution, consensus across all flight windows). After upload the longest session is shown automatically; up to 8 sessions from the currently uploaded logs can be overlaid.</p>
-    <p class="hint controls-hint">
-      <span class="ctl"><kbd>Scroll</kbd> Zoom time</span>
-      <span class="ctl"><kbd>Shift</kbd>+<kbd>Scroll</kbd> Zoom Y</span>
-      <span class="ctl"><kbd>Ctrl</kbd>+<kbd>Scroll</kbd> Zoom XY</span>
-      <span class="ctl"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Scroll</kbd> Zoom X</span>
-      <span class="ctl"><kbd>Alt</kbd>+<kbd>Scroll</kbd> Pan ⇄</span>
-      <span class="ctl"><kbd>Drag</kbd> Pan</span>
-      <span class="ctl"><kbd>Alt</kbd>+<kbd>Drag</kbd> Box zoom</span>
-      <span class="ctl"><kbd>Double-click</kbd> Reset</span>
-    </p>
+    <p class="help">Rate-controller step response (Wiener deconvolution). The
+      longest session shows after upload; overlay up to 8 sessions to compare
+      tunes.</p>
+    <details class="controls-help">
+      <summary>Controls &amp; shortcuts</summary>
+      <p class="controls-hint">
+        <span class="ctl"><kbd>Scroll</kbd> Zoom time</span>
+        <span class="ctl"><kbd>Shift</kbd>+<kbd>Scroll</kbd> Zoom Y</span>
+        <span class="ctl"><kbd>Ctrl</kbd>+<kbd>Scroll</kbd> Zoom XY</span>
+        <span class="ctl"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Scroll</kbd> Zoom X</span>
+        <span class="ctl"><kbd>Alt</kbd>+<kbd>Scroll</kbd> Pan ⇄</span>
+        <span class="ctl"><kbd>Drag</kbd> Pan</span>
+        <span class="ctl"><kbd>Alt</kbd>+<kbd>Drag</kbd> Box zoom</span>
+        <span class="ctl"><kbd>Double-click</kbd> Reset</span>
+      </p>
+    </details>
     <div id="compare-picker" class="compare-picker"></div>
     <div id="compare-charts" class="charts"></div>
   </section>

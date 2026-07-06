@@ -79,9 +79,12 @@ export function zoomPlugin({ group = null } = {}) {
           "background:rgba(77,163,255,0.15);border:1px solid #4da3ff;";
         over.appendChild(zoomBox);
 
-        // "grab" signals the plot is pannable; swapped to "grabbing"/"crosshair"
-        // for the duration of a drag, then restored on mouseup.
-        over.style.cursor = "grab";
+        // The cursor stays at its default until a drag starts: "grabbing" while
+        // panning, "crosshair" while alt box-zooming, restored on mouseup. This
+        // way the hand only shows up when something is actually being dragged.
+        // touch-action pan-y lets one finger scroll the page while two-finger
+        // gestures (pan+zoom) and double-tap reset are handled below.
+        over.style.touchAction = "pan-y";
 
         function setX(min, max) {
           // clamp to full range so you can't zoom/pan into nothingness
@@ -166,7 +169,7 @@ export function zoomPlugin({ group = null } = {}) {
             function boxUp(ev) {
               document.removeEventListener("mousemove", boxMove);
               document.removeEventListener("mouseup", boxUp);
-              over.style.cursor = "grab";
+              over.style.cursor = "";
               zoomBox.style.display = "none";
               const cx = clamp(ev.clientX - rect.left, 0, over.clientWidth);
               const cy = clamp(ev.clientY - rect.top, 0, over.clientHeight);
@@ -199,16 +202,17 @@ export function zoomPlugin({ group = null } = {}) {
           function up() {
             document.removeEventListener("mousemove", move);
             document.removeEventListener("mouseup", up);
-            over.style.cursor = "grab";
+            over.style.cursor = "";
           }
           document.addEventListener("mousemove", move);
           document.addEventListener("mouseup", up);
         });
 
-        over.addEventListener("dblclick", () => {
+        // Reset to the full view (X to data extent, Y to the chart's configured
+        // range function if any, else the visible-series extent). Shared by
+        // double-click (mouse) and double-tap (touch).
+        function resetView() {
           setX(xFull.min, xFull.max);
-          // Honor a chart's configured Y range function (e.g. spectrum charts
-          // framed to their noise band); fall back to fitting visible series.
           const rangeFn = u.scales.y.range;
           if (typeof rangeFn === "function") {
             let lo = Infinity, hi = -Infinity;
@@ -229,7 +233,70 @@ export function zoomPlugin({ group = null } = {}) {
             const y = visibleYExtent(u);
             u.setScale("y", { min: y.min, max: y.max });
           }
-        });
+        }
+
+        over.addEventListener("dblclick", resetView);
+
+        // ---- touch: two-finger pan+zoom, double-tap reset ------------------
+        // One finger scrolls the page (touch-action: pan-y). Two fingers pin
+        // each finger's data value under its pixel, so the same gesture pans
+        // and zooms both axes at once (val = c0 + c1·px, solved per axis).
+        let touch = null;
+        let lastTap = 0;
+        const tPos = (t) => {
+          const r = over.getBoundingClientRect();
+          return { px: t.clientX - r.left, py: t.clientY - r.top };
+        };
+
+        over.addEventListener("touchstart", (e) => {
+          if (e.touches.length === 2) {
+            const A = tPos(e.touches[0]), B = tPos(e.touches[1]);
+            touch = {
+              mode: "pinch",
+              pxA: A.px, pxB: B.px, pyA: A.py, pyB: B.py,
+              vxA: u.posToVal(A.px, "x"), vxB: u.posToVal(B.px, "x"),
+              vyA: u.posToVal(A.py, "y"), vyB: u.posToVal(B.py, "y"),
+            };
+            e.preventDefault();
+          } else if (e.touches.length === 1) {
+            const t = e.touches[0];
+            touch = { mode: "tap", sx: t.clientX, sy: t.clientY, moved: false };
+          }
+        }, { passive: false });
+
+        over.addEventListener("touchmove", (e) => {
+          if (!touch) return;
+          if (touch.mode === "pinch" && e.touches.length === 2) {
+            e.preventDefault();
+            const A = tPos(e.touches[0]), B = tPos(e.touches[1]);
+            const W = over.clientWidth, H = over.clientHeight;
+            if (Math.abs(A.px - B.px) > 20) {
+              const c1 = (touch.vxA - touch.vxB) / (A.px - B.px);
+              const c0 = touch.vxA - c1 * A.px;
+              setX(c0, c0 + c1 * W);
+            }
+            if (Math.abs(A.py - B.py) > 20) {
+              const c1 = (touch.vyA - touch.vyB) / (A.py - B.py);
+              const c0 = touch.vyA - c1 * A.py;
+              u.setScale("y", { min: c0 + c1 * H, max: c0 });
+            }
+          } else if (touch.mode === "tap") {
+            const t = e.touches[0];
+            if (Math.abs(t.clientX - touch.sx) > 8 || Math.abs(t.clientY - touch.sy) > 8) {
+              touch.moved = true; // it's a page scroll, not a tap
+            }
+          }
+        }, { passive: false });
+
+        over.addEventListener("touchend", (e) => {
+          if (e.touches.length > 0) return; // fingers still down
+          const wasTap = touch && touch.mode === "tap" && !touch.moved;
+          touch = null;
+          if (!wasTap) return;
+          const now = Date.now();
+          if (now - lastTap < 300) { resetView(); lastTap = 0; }
+          else lastTap = now;
+        }, { passive: false });
       },
     },
   };

@@ -8,6 +8,7 @@ import {
 } from "./compare.js";
 import { setSyncEnabled } from "./charts/zoomPlugin.js";
 import { renderSessionInfo, clearSessionInfo } from "./sessionInfo.js";
+import { renderMetaSummary, clearMetaSummary } from "./metaSummary.js";
 
 const el = (id) => document.getElementById(id);
 
@@ -15,6 +16,7 @@ const state = {
   logId: null,
   sessionId: null,
   sessions: [],
+  file: null,   // {name, size} of the uploaded file, for the metadata bar
   gyroLoaded: false,
   spectrumLoaded: false,
   noiseLoaded: false,
@@ -63,6 +65,7 @@ el("file-input").addEventListener("change", async (e) => {
     });
     state.logId = result.log_id;
     state.sessions = result.sessions;
+    state.file = { name: file.name, size: file.size };
     populateSessions();
     // default to the longest session - the first is often a tiny arm-blip
     const longest = [...result.sessions].sort((a, b) => b.duration_s - a.duration_s)[0];
@@ -169,7 +172,13 @@ async function selectSession(sessionId) {
   el("empty-state").classList.add("hidden");
 
   const session = state.sessions.find((s) => s.session_id === sessionId);
-  if (session) renderSessionInfo(session); else clearSessionInfo();
+  if (session) {
+    renderSessionInfo(session);
+    renderMetaSummary(session, state.file);
+  } else {
+    clearSessionInfo();
+    clearMetaSummary();
+  }
   if (session && !session.gyro_unfilt_available) {
     setBanner(
       "This log contains no unfiltered gyro signal. In the Betaflight CLI, set " +

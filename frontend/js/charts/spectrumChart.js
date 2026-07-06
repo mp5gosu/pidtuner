@@ -134,14 +134,55 @@ function createMarkerController(u, nyquist) {
     document.addEventListener("mouseup", onUp);
   }
 
+  // Touch equivalent of beginDrag. `fromPill` markers also treat a stationary
+  // double-tap as "rename" (touch has no dblclick). stopPropagation keeps the
+  // chart's own touch pan/zoom from firing.
+  function beginTouchDrag(m, e, fromPill) {
+    if (e.touches.length !== 1) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = over.getBoundingClientRect();
+    const startX = e.touches[0].clientX, startY = e.touches[0].clientY;
+    let moved = false;
+    const onMove = (ev) => {
+      if (ev.touches.length !== 1) return;
+      ev.preventDefault();
+      const t = ev.touches[0];
+      if (Math.abs(t.clientX - startX) > 6 || Math.abs(t.clientY - startY) > 6) moved = true;
+      const w = over.clientWidth;
+      const x = clamp(t.clientX - rect.left, 0, w);
+      const { min, max } = u.scales.x;
+      m.freq = clamp(min + (x / w) * (max - min), 0, nyquist);
+      m.line.style.left = x + "px";
+      m.pill.classList.toggle("flip", x > w * RIGHT_FLIP_FRAC);
+      refreshText(m);
+    };
+    const onEnd = () => {
+      document.removeEventListener("touchmove", onMove);
+      document.removeEventListener("touchend", onEnd);
+      if (fromPill && !moved) {
+        const now = Date.now();
+        if (now - m._lastTap < 300) { m._lastTap = 0; startRename(m); }
+        else m._lastTap = now;
+      }
+    };
+    document.addEventListener("touchmove", onMove, { passive: false });
+    document.addEventListener("touchend", onEnd);
+  }
+
   function addMarker(freq, label = "") {
     const color = MARKER_PALETTE[colorIdx % MARKER_PALETTE.length];
     colorIdx++;
-    const m = { freq: clamp(freq, 0, nyquist), label, color, editing: false };
+    const m = { freq: clamp(freq, 0, nyquist), label, color, editing: false, _lastTap: 0 };
 
     const line = document.createElement("div");
     line.className = "spec-marker-line";
     line.style.borderLeftColor = color;
+
+    // Wide transparent strip centered on the 1px line so the whole line is a
+    // drag handle, not just the pill. Sits behind the pill (added first).
+    const hit = document.createElement("div");
+    hit.className = "spec-marker-hit";
 
     const pill = document.createElement("div");
     pill.className = "spec-marker-pill";
@@ -159,16 +200,19 @@ function createMarkerController(u, nyquist) {
     close.title = "Remove marker";
 
     pill.append(text, close);
-    line.appendChild(pill);
+    line.append(hit, pill);
     overlay.appendChild(line);
 
     Object.assign(m, { line, pill, text });
     refreshText(m);
 
     pill.addEventListener("mousedown", (e) => beginDrag(m, e));
+    pill.addEventListener("touchstart", (e) => beginTouchDrag(m, e, true), { passive: false });
     pill.addEventListener("dblclick", (e) => {
       e.preventDefault(); e.stopPropagation(); startRename(m);
     });
+    hit.addEventListener("mousedown", (e) => beginDrag(m, e));
+    hit.addEventListener("touchstart", (e) => beginTouchDrag(m, e, false), { passive: false });
     close.addEventListener("mousedown", (e) => e.stopPropagation());
     close.addEventListener("click", (e) => {
       e.preventDefault(); e.stopPropagation(); removeMarker(m);

@@ -1,36 +1,31 @@
-# PIDtuner — deploy on TrueNAS Scale (Apps → "Custom App" → "Install via YAML")
-# or anywhere with `docker compose up -d`.
+# PIDtuner — run anywhere with `docker compose up -d`.
 #
-# TrueNAS note: the "Custom App" YAML editor has no build context, so use a
-# prebuilt image. GitHub Actions publishes one automatically on every push to
-# ghcr.io/mp5gosu/pidtuner — just activate the `image:` line below and remove
-# `build: .`. For a plain `docker compose up` from the repo, leave `build:` as-is.
+# Uploaded logs are handled fully ephemerally: the server wipes its work
+# directory on startup, each browser deletes its own uploads when the tab
+# closes, and a reaper prunes anything abandoned. So there is no persistent
+# volume — `/data` lives inside the container and is discarded when it is
+# removed. (Add a volume mount on `/data` only if you deliberately want
+# decoded scratch data to survive a container restart.)
 
 services:
   pidtuner:
     container_name: pidtuner
     build: .
-    # image: ghcr.io/mp5gosu/pidtuner:latest   # ← use instead of `build:` on TrueNAS
+    # image: ghcr.io/mp5gosu/pidtuner:latest   # ← use instead of `build:` to pull the prebuilt image
     restart: unless-stopped
     ports:
       - "8000:8000"               # host:container — change the host port if 8000 is taken
     environment:
-      # Server-side storage is only a decode/dedup cache; entries older than
-      # this many days are pruned on startup (0 disables cleanup).
-      PIDTUNER_DATA_TTL_DAYS: "14"
+      # Backstop reaper: abandoned uploads older than this many minutes are
+      # pruned (0 disables). Normal cleanup is on tab close + startup wipe.
+      PIDTUNER_DATA_TTL_MIN: "360"
+      # How often (minutes) the reaper runs.
+      PIDTUNER_REAP_INTERVAL_MIN: "30"
       # Max upload size in bytes (default 512 MiB).
       PIDTUNER_MAX_UPLOAD_BYTES: "536870912"
-    volumes:
-      - pidtuner-data:/data
-      # TrueNAS bind-mount alternative — point at a dataset instead of the
-      # named volume, then delete the `pidtuner-data` volume block below:
-      # - /mnt/<pool>/apps/pidtuner/data:/data
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/', timeout=5).status == 200 else 1)"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 20s
-
-volumes:
-  pidtuner-data:

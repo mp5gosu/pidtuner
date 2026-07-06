@@ -256,11 +256,11 @@ function createHeatmap(container, axis) {
     ctx.setLineDash([]);
   }
 
-  // ---- hover readout ----
-  canvas.addEventListener("mousemove", (ev) => {
+  // ---- hover / tap readout (mouse + touch) ----
+  function showReadout(clientX, clientY) {
     if (!plot || !grid()) return;
     const rect = canvas.getBoundingClientRect();
-    const mx = ev.clientX - rect.left, my = ev.clientY - rect.top;
+    const mx = clientX - rect.left, my = clientY - rect.top;
     if (mx < plot.x0 || mx > plot.x1 || my < plot.y0 || my > plot.y1) {
       tip.classList.add("hidden"); draw(); return;
     }
@@ -277,8 +277,19 @@ function createHeatmap(container, axis) {
     tip.textContent = `${Math.round(thr)}% · ${Math.round(freqArr()[fi])} Hz · ${v.toFixed(3)} °/s`;
     tip.style.left = clamp(mx + 12, 0, cssW - 130) + "px";
     tip.style.top = clamp(my + 12, 0, cssH - 30) + "px";
-  });
-  canvas.addEventListener("mouseleave", () => { tip.classList.add("hidden"); draw(); });
+  }
+  const hideReadout = () => { tip.classList.add("hidden"); draw(); };
+
+  canvas.addEventListener("mousemove", (ev) => showReadout(ev.clientX, ev.clientY));
+  canvas.addEventListener("mouseleave", hideReadout);
+  const onTouch = (ev) => {
+    if (ev.touches.length !== 1) return;
+    ev.preventDefault();
+    showReadout(ev.touches[0].clientX, ev.touches[0].clientY);
+  };
+  canvas.addEventListener("touchstart", onTouch, { passive: false });
+  canvas.addEventListener("touchmove", onTouch, { passive: false });
+  canvas.addEventListener("touchend", hideReadout);
 
   function resize() {
     const w = el.clientWidth;

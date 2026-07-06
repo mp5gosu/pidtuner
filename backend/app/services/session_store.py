@@ -1,11 +1,14 @@
 """In-process registry of uploaded logs and their decoded sessions.
 
-Metadata is persisted as index.json per log dir, so uploads survive a backend
-restart (single worker only - documented in README).
+Storage is fully ephemeral (single worker only - documented in README):
+everything under DATA_DIR is wiped on startup and on shutdown, a browser deletes
+its own uploads when its tab closes, and a reaper prunes abandoned uploads.
+Uploads are never deduplicated/shared between users. index.json per log dir is
+just the on-disk backing for the in-process registry during runtime.
 """
 
-import hashlib
 import json
+import shutil
 import threading
 import time
 import uuid
@@ -34,7 +37,7 @@ def create_log_id() -> str:
     return uuid.uuid4().hex[:12]
 
 
-def register_upload(log_id: str, filename: str, sha256: str | None = None) -> dict:
+def register_upload(log_id: str, filename: str) -> dict:
     """Decode an already-saved raw.bbl and persist session metadata."""
     log_dir = _log_dir(log_id)
     raw_path = log_dir / "raw.bbl"
@@ -51,70 +54,43 @@ def register_upload(log_id: str, filename: str, sha256: str | None = None) -> di
             "csv": item["csv"].name,
             "bbl": item["bbl"].name,
             "duration_s": round(csv_parser.quick_duration_s(item["csv"]), 2),
+            "size_bytes": item["bbl"].stat().st_size,
+            "sample_rate_hz": round(csv_parser.quick_sample_rate_hz(item["csv"]), 1),
             "headers": headers,
             "headers_raw": csv_parser.read_raw_headers(item["bbl"]),
             "gyro_unfilt_available": unfilt_available,
             "gyro_unfilt_source": unfilt_source,
         })
 
-    index = {"log_id": log_id, "filename": filename, "sha256": sha256,
+    index = {"log_id": log_id, "filename": filename,
              "uploaded_at": time.time(), "sessions": sessions}
     (log_dir / "index.json").write_text(json.dumps(index, indent=1))
     return index
 
 
-def _backfill_headers_raw(index: dict) -> bool:
-    """Populate 'headers_raw' for sessions of a legacy index.json that predates
-    the field, re-parsing from the retained per-session .bbl. Persists and
-    returns True if anything changed. Mirrors the sha256 backfill below."""
-    log_dir = _log_dir(index["log_id"])
-    changed = False
-    for s in index.get("sessions", []):
-        if s.get("headers_raw"):
-            continue
-        bbl = log_dir / s.get("bbl", "")
-        if not bbl.exists():
-            continue
-        s["headers_raw"] = csv_parser.read_raw_headers(bbl)
-        changed = True
-    if changed:
-        (log_dir / "index.json").write_text(json.dumps(index, indent=1))
-    return changed
+def wipe_all() -> None:
+    """Remove every uploaded log under DATA_DIR (but keep DATA_DIR itself, so a
+    mounted volume survives). Used on startup and shutdown for ephemerality."""
+    if not config.DATA_DIR.exists():
+        return
+    for child in config.DATA_DIR.iterdir():
+        if child.is_dir():
+            shutil.rmtree(child, ignore_errors=True)
+        else:
+            child.unlink(missing_ok=True)
 
 
 def cleanup_expired() -> int:
-    """Delete logs older than DATA_TTL_DAYS. Returns number removed."""
-    import shutil
-
-    if config.DATA_TTL_DAYS <= 0:
+    """Delete logs older than DATA_TTL_MIN. Returns number removed."""
+    if config.DATA_TTL_MIN <= 0:
         return 0
-    cutoff = time.time() - config.DATA_TTL_DAYS * 86400
+    cutoff = time.time() - config.DATA_TTL_MIN * 60
     removed = 0
     for index in list_logs():
         if index["uploaded_at"] < cutoff:
             shutil.rmtree(_log_dir(index["log_id"]), ignore_errors=True)
             removed += 1
     return removed
-
-
-def find_by_sha256(digest: str) -> dict | None:
-    """Existing log with identical raw content, or None. Backfills the hash
-    into legacy index.json files that predate this field."""
-    for index in list_logs():
-        sha = index.get("sha256")
-        if sha is None:
-            raw = _log_dir(index["log_id"]) / "raw.bbl"
-            if not raw.exists():
-                continue
-            with open(raw, "rb") as f:
-                sha = hashlib.file_digest(f, "sha256").hexdigest()
-            index["sha256"] = sha
-            (_log_dir(index["log_id"]) / "index.json").write_text(
-                json.dumps(index, indent=1))
-        if sha == digest:
-            _backfill_headers_raw(index)
-            return index
-    return None
 
 
 def list_logs() -> list[dict]:
@@ -137,9 +113,7 @@ def get_log(log_id: str) -> dict:
     index_path = _log_dir(log_id) / "index.json"
     if not index_path.exists():
         raise NotFound(f"Unknown log_id {log_id}")
-    index = json.loads(index_path.read_text())
-    _backfill_headers_raw(index)
-    return index
+    return json.loads(index_path.read_text())
 
 
 def get_session(log_id: str, session_id: int) -> dict:
@@ -167,8 +141,8 @@ def get_dataframe(log_id: str, session_id: int) -> pd.DataFrame:
 
 def rename_session(log_id: str, session_id: int, name: str) -> dict:
     """Set (or clear, if name is blank) a user-facing name for one session.
-    Persisted into index.json so it survives a restart and re-appears when the
-    same file is re-uploaded (dedup returns the existing index)."""
+    Written into index.json so it holds for the lifetime of this upload (storage
+    is ephemeral, so it does not survive a restart or a fresh re-upload)."""
     index_path = _log_dir(log_id) / "index.json"
     if not index_path.exists():
         raise NotFound(f"Unknown log_id {log_id}")
@@ -187,8 +161,6 @@ def rename_session(log_id: str, session_id: int, name: str) -> dict:
 
 
 def delete_log(log_id: str) -> None:
-    import shutil
-
     log_dir = _log_dir(log_id)
     if not log_dir.exists():
         raise NotFound(f"Unknown log_id {log_id}")

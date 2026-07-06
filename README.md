@@ -39,13 +39,13 @@ controller with latency metrics.
   with the lowest combined latency, rise time and overshoot (each metric
   min-max normalized across the compared sessions, summed over the axes
   they share). After upload, the longest session is displayed
-  automatically. Only the logs of the current browser session
-  are visible; on the server side, uploads remain as an invisible
-  decode/dedup cache (which makes duplicate uploads finish instantly)
-  and are cleaned up on startup after `PIDTUNER_DATA_TTL_DAYS`
-  (default 14). Step-response results are cached as
-  `stepresp_v*_<sid>.json`; bump the version tag when changing the
-  algorithm.
+  automatically. Storage is fully ephemeral and per-user: each upload is
+  isolated (never shared/deduplicated between users), the server wipes its work
+  directory on startup, a browser deletes its own uploads when its tab closes,
+  and a reaper prunes anything abandoned after `PIDTUNER_DATA_TTL_MIN`
+  (default 360). Step-response results are cached per session
+  (`stepresp_v*_<sid>.json`) for the lifetime of that upload; bump the version
+  tag when changing the algorithm.
 
 ## Setup
 
@@ -69,52 +69,55 @@ existing binary, for example from a Betaflight Configurator installation:
 export PIDTUNER_BLACKBOX_DECODE_BIN=/path/to/blackbox_decode
 ```
 
-## Docker / TrueNAS Scale
+## Docker
 
 A multi-stage [`Dockerfile`](Dockerfile) builds `blackbox_decode` from source
 and bakes it into a slim Python runtime together with the backend and frontend —
 no `uv`, `gcc` or binary juggling on the host. The container serves on port
-`8000` and persists its decode/dedup cache in the `/data` volume.
+`8000`.
 
 ```bash
 docker compose up -d          # build + run, http://localhost:8000
+docker compose logs -f        # follow logs
+docker compose down           # stop & remove
 ```
+
+Storage is **ephemeral**: uploaded logs are decoded into a scratch dir inside
+the container, wiped on startup and when the container is removed, isolated
+per user (no cross-user dedup), and reaped after `PIDTUNER_DATA_TTL_MIN`. There
+is no persistent volume — a fresh start is always clean, which is what you want
+when several people upload logs to the same instance.
 
 The image runs uvicorn with **one worker** (the caches are process-local).
 Configure via environment variables in [`docker-compose.yml`](docker-compose.yml)
-(`PIDTUNER_DATA_TTL_DAYS`, `PIDTUNER_MAX_UPLOAD_BYTES`, …).
+(`PIDTUNER_DATA_TTL_MIN`, `PIDTUNER_REAP_INTERVAL_MIN`, `PIDTUNER_MAX_UPLOAD_BYTES`, …).
 
-### Automated builds (GitHub Actions → ghcr.io)
+To build a plain image without compose:
+
+```bash
+docker build -t pidtuner:latest .
+docker run -d -p 8000:8000 pidtuner:latest
+```
+
+> The image build clones `betaflight/blackbox-tools` from GitHub, so it needs
+> network access **at build time**; the running container is fully offline.
+
+### Prebuilt image (GitHub Actions → ghcr.io)
 
 [`.github/workflows/docker-publish.yml`](.github/workflows/docker-publish.yml)
 builds and pushes the image to the GitHub Container Registry on every push to
 `develop`/`main`, on `v*` tags, and on manual dispatch — no secrets to set up
-(it uses the built-in `GITHUB_TOKEN`). Published image:
+(it uses the built-in `GITHUB_TOKEN`). To pull instead of building, activate the
+`image:` line in [`docker-compose.yml`](docker-compose.yml) (and remove
+`build: .`):
 
 ```
 ghcr.io/mp5gosu/pidtuner:latest      # tracks the default branch
 ghcr.io/mp5gosu/pidtuner:v1.2.3      # from a `git tag v1.2.3`
 ```
 
-Packages are private by default; make the package public (or log in with a PAT)
-if TrueNAS should pull without credentials.
-
-### TrueNAS Scale
-
-Apps → *Custom App* → *Install via YAML*. The YAML editor has no build context,
-so use the prebuilt image above — paste [`docker-compose.yml`](docker-compose.yml)
-with the `image: ghcr.io/mp5gosu/pidtuner:latest` line active (and `build: .`
-removed), and point the `/data` mount at a dataset for persistence:
-
-```yaml
-volumes:
-  - /mnt/<pool>/apps/pidtuner/data:/data
-```
-
-To build locally instead (no registry), run `docker build -t pidtuner:latest .`.
-
-> The image build clones `betaflight/blackbox-tools` from GitHub, so it needs
-> network access **at build time**; the running container is fully offline.
+Packages are private by default; make the package public (or `docker login
+ghcr.io` with a PAT) to pull without credentials.
 
 ## Important: unfiltered gyro requires the right log configuration
 

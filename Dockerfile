@@ -47,9 +47,9 @@ COPY backend/ /app/backend/
 COPY frontend/ /app/frontend/
 COPY --from=blackbox-builder /build/obj/blackbox_decode /app/backend/bin/blackbox_decode
 
-# Persistent decode/dedup cache lives here (mount a volume on it)
+# Ephemeral scratch dir for decoding (wiped on startup; no VOLUME, so nothing
+# persists after the container is removed).
 RUN mkdir -p /data
-VOLUME ["/data"]
 
 EXPOSE 8000
 

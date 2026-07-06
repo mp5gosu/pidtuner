@@ -138,6 +138,36 @@ def quick_duration_s(csv_path: Path) -> float:
         return 0.0
 
 
+def quick_sample_rate_hz(csv_path: Path) -> float:
+    """Logging sample rate estimate from the median gap of the first data rows.
+
+    Cheap: reads only the header + a handful of rows (like quick_duration_s).
+    Time is decoded in microseconds (blackbox_decode --unit-frame-time us), so
+    the rate is 1e6 / median(Δtime). Returns 0.0 if it can't be determined.
+    """
+    with open(csv_path, "rb") as f:
+        header = f.readline().decode("latin-1")
+        cols = [_normalize_column(c) for c in header.split(",")]
+        try:
+            time_idx = cols.index("time")
+        except ValueError:
+            return 0.0
+        times = []
+        for _ in range(16):
+            line = f.readline()
+            if not line:
+                break
+            try:
+                times.append(float(line.decode("latin-1", errors="replace").split(",")[time_idx]))
+            except (ValueError, IndexError):
+                continue
+    dts = sorted(b - a for a, b in zip(times, times[1:]) if b > a)
+    if not dts:
+        return 0.0
+    median = dts[len(dts) // 2]
+    return 1e6 / median if median > 0 else 0.0
+
+
 def unfilt_availability(csv_path: Path, headers: dict) -> tuple[bool, str]:
     """Determine whether unfiltered gyro data exists and where it comes from.
 

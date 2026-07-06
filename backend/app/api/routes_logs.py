@@ -1,4 +1,3 @@
-import hashlib
 import logging
 import shutil
 
@@ -22,8 +21,9 @@ async def upload_log(request: Request, file: UploadFile):
     log_dir.mkdir(parents=True, exist_ok=True)
     raw_path = log_dir / "raw.bbl"
 
+    # Each upload is isolated (no cross-user dedup) so users never share decoded
+    # data or custom session names; it is reaped when the tab closes / on TTL.
     written = 0
-    sha = hashlib.sha256()
     with open(raw_path, "wb") as out:
         while chunk := await file.read(1 << 20):
             written += len(chunk)
@@ -31,28 +31,14 @@ async def upload_log(request: Request, file: UploadFile):
                 out.close()
                 shutil.rmtree(log_dir, ignore_errors=True)
                 raise HTTPException(413, "Log file too large")
-            sha.update(chunk)
             out.write(chunk)
 
-    # identical content already on disk? reuse instead of duplicating
-    existing = session_store.find_by_sha256(sha.hexdigest())
-    if existing:
-        shutil.rmtree(log_dir, ignore_errors=True)
-        log.info("Upload is a duplicate of log %s, reusing", existing["log_id"])
-        return {**existing, "duplicate_of_existing": True}
-
     try:
-        index = session_store.register_upload(
-            log_id, file.filename or "log.bbl", sha256=sha.hexdigest())
+        index = session_store.register_upload(log_id, file.filename or "log.bbl")
     except blackbox_decoder.DecodeError as e:
         shutil.rmtree(log_dir, ignore_errors=True)
         raise HTTPException(422, str(e))
     return index
-
-
-@router.get("/api/logs")
-def list_logs():
-    return {"logs": session_store.list_logs()}
 
 
 @router.get("/api/logs/{log_id}/sessions")

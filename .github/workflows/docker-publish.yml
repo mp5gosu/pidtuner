@@ -4,7 +4,7 @@ name: Build & publish Docker image
 # No secrets to configure — this uses the built-in GITHUB_TOKEN.
 #
 # The published image lands at:  ghcr.io/mp5gosu/pidtuner
-# Pull it on TrueNAS with:        image: ghcr.io/mp5gosu/pidtuner:latest
+# Pull it with:                   image: ghcr.io/mp5gosu/pidtuner:latest
 
 on:
   push:
@@ -53,7 +53,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64        # TrueNAS Scale is x86_64
+          platforms: linux/amd64        # x86_64 servers
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

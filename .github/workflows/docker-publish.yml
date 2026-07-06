@@ -8,8 +8,7 @@ name: Build & publish Docker image
 
 on:
   push:
-    branches: [develop, main]
-    tags: ["v*"]          # a git tag like v1.2.3 publishes :1.2.3, :1.2 and :latest
+    tags: ["v*"]          # only a git tag like v1.2.3 triggers a build -> :1.2.3, :1.2, :latest
   workflow_dispatch: {}    # allow manual "Run workflow" from the Actions tab
 
 env:
@@ -43,10 +42,9 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=ref,event=branch
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ github.ref_type == 'tag' }}
             type=sha
 
       - name: Build and push

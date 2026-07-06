@@ -1,11 +1,11 @@
 # PIDtuner — run anywhere with `docker compose up -d`.
 #
 # Uploaded logs are handled fully ephemerally: the server wipes its work
-# directory on startup, each browser deletes its own uploads when the tab
-# closes, and a reaper prunes anything abandoned. So there is no persistent
-# volume — `/data` lives inside the container and is discarded when it is
-# removed. (Add a volume mount on `/data` only if you deliberately want
-# decoded scratch data to survive a container restart.)
+# directory on startup and a reaper prunes anything left inactive for
+# PIDTUNER_DATA_TTL_MIN (open browser tabs stay alive via a keepalive heartbeat,
+# so an accidental reload isn't a total loss). There is no persistent volume —
+# `/data` lives inside the container and is discarded when it is removed. (Add a
+# volume mount on `/data` only if you deliberately want scratch data to survive.)
 
 services:
   pidtuner:
@@ -16,11 +16,11 @@ services:
     ports:
       - "8000:8000"               # host:container — change the host port if 8000 is taken
     environment:
-      # Backstop reaper: abandoned uploads older than this many minutes are
-      # pruned (0 disables). Normal cleanup is on tab close + startup wipe.
-      PIDTUNER_DATA_TTL_MIN: "360"
+      # Inactivity reaper: uploads untouched (no fetch/heartbeat) for this many
+      # minutes are pruned (0 disables). Also wiped on startup.
+      PIDTUNER_DATA_TTL_MIN: "60"
       # How often (minutes) the reaper runs.
-      PIDTUNER_REAP_INTERVAL_MIN: "30"
+      PIDTUNER_REAP_INTERVAL_MIN: "10"
       # Max upload size in bytes (default 512 MiB).
       PIDTUNER_MAX_UPLOAD_BYTES: "536870912"
     healthcheck:

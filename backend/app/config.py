@@ -20,11 +20,12 @@ DECODE_TIMEOUT_S = 180
 # Cap for time-series points sent to the browser per series (min/max decimated).
 MAX_CHART_POINTS = int(os.environ.get("PIDTUNER_MAX_CHART_POINTS", 400_000))
 
-# Server-side upload storage is fully ephemeral: it is wiped on startup, a
-# browser removes its own uploads when its tab closes, and a periodic reaper
-# deletes anything older than DATA_TTL_MIN as a backstop for abandoned uploads.
-# 0 disables the reaper. Uploads are never shared between users (no dedup).
-DATA_TTL_MIN = float(os.environ.get("PIDTUNER_DATA_TTL_MIN", 360))
+# Server-side upload storage is fully ephemeral: it is wiped on startup and a
+# periodic reaper deletes any log untouched for DATA_TTL_MIN (inactivity, not
+# age — every fetch/heartbeat refreshes it), so an open browser tab keeps its
+# uploads alive and an accidental reload is not a total loss. 0 disables the
+# reaper. Uploads are never shared between users (no dedup).
+DATA_TTL_MIN = float(os.environ.get("PIDTUNER_DATA_TTL_MIN", 60))
 
 # How often the background reaper runs (minutes). 0 disables it.
-REAP_INTERVAL_MIN = float(os.environ.get("PIDTUNER_REAP_INTERVAL_MIN", 30))
+REAP_INTERVAL_MIN = float(os.environ.get("PIDTUNER_REAP_INTERVAL_MIN", 10))

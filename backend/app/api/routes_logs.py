@@ -58,6 +58,17 @@ def rename_session(log_id: str, session_id: int, name: str = Body("", embed=True
     return {"session_id": session_id, "name": session.get("name", "")}
 
 
+@router.post("/api/logs/{log_id}/keepalive")
+def keepalive(log_id: str):
+    """Heartbeat from an open browser tab: refresh the log's last_access so the
+    inactivity reaper spares it. 404 lets the client forget an already-reaped log."""
+    try:
+        session_store.get_log(log_id)  # raises NotFound; also refreshes last_access
+    except session_store.NotFound as e:
+        raise HTTPException(404, str(e))
+    return {"ok": True}
+
+
 @router.delete("/api/logs/{log_id}")
 def delete_log(log_id: str):
     try:

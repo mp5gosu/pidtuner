@@ -4,11 +4,13 @@ import { renderSpectrum, destroySpectrum } from "./charts/spectrumChart.js";
 import { renderNoiseThrottle, destroyNoiseThrottle } from "./charts/noiseThrottleChart.js";
 import {
   initCompare, renderCompareTab, registerUploadedLog, selectForCompare,
-  renameSessionByKey,
+  renameSessionByKey, restoreCompare, uploadedLogIds,
 } from "./compare.js";
 import { setSyncEnabled } from "./charts/zoomPlugin.js";
-import { renderSessionInfo, clearSessionInfo } from "./sessionInfo.js";
 import { renderMetaSummary, clearMetaSummary } from "./metaSummary.js";
+import {
+  persistActive, loadLogIds, loadSelectedKeys, loadActive, clearPersisted,
+} from "./persist.js";
 
 const el = (id) => document.getElementById(id);
 
@@ -163,6 +165,7 @@ el("session-select").addEventListener("change", (e) => {
 
 async function selectSession(sessionId) {
   state.sessionId = sessionId;
+  persistActive({ logId: state.logId, sessionId, file: state.file });
   state.gyroLoaded = false;
   state.spectrumLoaded = false;
   state.noiseLoaded = false;
@@ -173,10 +176,8 @@ async function selectSession(sessionId) {
 
   const session = state.sessions.find((s) => s.session_id === sessionId);
   if (session) {
-    renderSessionInfo(session);
     renderMetaSummary(session, state.file);
   } else {
-    clearSessionInfo();
     clearMetaSummary();
   }
   if (session && !session.gyro_unfilt_available) {
@@ -245,3 +246,61 @@ syncToggle.addEventListener("change", () => {
   setSyncEnabled(syncToggle.checked);
   localStorage.setItem("pidtuner-axis-sync", syncToggle.checked ? "1" : "0");
 });
+
+// ---- keepalive heartbeat -----------------------------------------------
+// While this tab is open and visible, tell the server its uploads are still in
+// use so the inactivity reaper (DATA_TTL_MIN) only claims abandoned logs. A
+// closed/hidden tab stops beating and is reaped after the TTL.
+
+const HEARTBEAT_MS = 5 * 60 * 1000;
+function heartbeat() {
+  if (document.visibilityState !== "visible") return;
+  for (const id of uploadedLogIds()) {
+    fetch(`/api/logs/${id}/keepalive`, { method: "POST", keepalive: true }).catch(() => {});
+  }
+}
+setInterval(heartbeat, HEARTBEAT_MS);
+document.addEventListener("visibilitychange", heartbeat);
+
+// ---- restore after reload ----------------------------------------------
+// Re-attach to logs still alive on the server so an accidental refresh isn't a
+// total loss. Anything already reaped is dropped from local storage.
+
+async function restoreSession() {
+  const ids = loadLogIds();
+  if (!ids.length) return;
+
+  const indexes = [];
+  for (const id of ids) {
+    try {
+      const resp = await fetch(`/api/logs/${id}/sessions`);
+      if (resp.ok) indexes.push(await resp.json());
+    } catch { /* unreachable - skip */ }
+  }
+  if (!indexes.length) { clearPersisted(); return; }
+
+  el("empty-state").classList.add("hidden");
+
+  // Step-Response tab: re-register logs and re-select the compared sessions.
+  await restoreCompare(indexes, loadSelectedKeys());
+
+  // Main tabs: restore the active log/session (fall back to the newest log).
+  const active = loadActive();
+  const activeIdx = (active && indexes.find((l) => l.log_id === active.logId))
+    || indexes[indexes.length - 1];
+  state.logId = activeIdx.log_id;
+  state.sessions = activeIdx.sessions;
+  state.file = (active && active.logId === activeIdx.log_id) ? active.file : null;
+  populateSessions();
+  const known = active && active.logId === activeIdx.log_id
+    && activeIdx.sessions.some((s) => s.session_id === active.sessionId);
+  const sid = known
+    ? active.sessionId
+    : [...activeIdx.sessions].sort((a, b) => b.duration_s - a.duration_s)[0].session_id;
+  el("session-select").value = sid;
+  await selectSession(sid);
+
+  heartbeat();
+}
+
+restoreSession().catch((err) => toast(err.message));

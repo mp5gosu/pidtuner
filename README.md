@@ -40,10 +40,13 @@ controller with latency metrics.
   min-max normalized across the compared sessions, summed over the axes
   they share). After upload, the longest session is displayed
   automatically. Storage is fully ephemeral and per-user: each upload is
-  isolated (never shared/deduplicated between users), the server wipes its work
-  directory on startup, a browser deletes its own uploads when its tab closes,
-  and a reaper prunes anything abandoned after `PIDTUNER_DATA_TTL_MIN`
-  (default 360). Step-response results are cached per session
+  isolated (never shared/deduplicated between users) and the server wipes its
+  work directory on startup. Expiry is **inactivity-based**: a reaper prunes any
+  log left untouched for `PIDTUNER_DATA_TTL_MIN` (default 60), while every fetch
+  and a background keepalive heartbeat from open browser tabs refresh it. The
+  browser also remembers its uploads locally and re-attaches on load, so an
+  accidental page reload is not a total loss (there is deliberately no manual
+  delete button). Step-response results are cached per session
   (`stepresp_v*_<sid>.json`) for the lifetime of that upload; bump the version
   tag when changing the algorithm.
 
@@ -84,9 +87,10 @@ docker compose down           # stop & remove
 
 Storage is **ephemeral**: uploaded logs are decoded into a scratch dir inside
 the container, wiped on startup and when the container is removed, isolated
-per user (no cross-user dedup), and reaped after `PIDTUNER_DATA_TTL_MIN`. There
-is no persistent volume — a fresh start is always clean, which is what you want
-when several people upload logs to the same instance.
+per user (no cross-user dedup), and reaped after `PIDTUNER_DATA_TTL_MIN` of
+inactivity (open tabs stay alive via a keepalive heartbeat; a reload re-attaches).
+There is no persistent volume — a fresh start is always clean, which is what you
+want when several people upload logs to the same instance.
 
 The image runs uvicorn with **one worker** (the caches are process-local).
 Configure via environment variables in [`docker-compose.yml`](docker-compose.yml)
@@ -139,7 +143,7 @@ after the fact.
 backend/app/
   main.py                    FastAPI app, startup check, static serving
   config.py                  paths/limits, overridable via PIDTUNER_* env vars
-  api/routes_logs.py         POST /api/logs (upload), sessions, DELETE
+  api/routes_logs.py         POST /api/logs (upload), sessions, rename, keepalive, DELETE
   api/routes_gyro.py         GET .../gyro (binary format, min/max-decimated)
   api/routes_spectrum.py     GET .../spectrum (JSON, Welch amplitude spectrum)
   api/routes_noise_throttle.py GET .../noise-throttle (binary, freq x throttle maps)
@@ -150,7 +154,7 @@ backend/app/
   services/spectrum.py       per-axis Welch amplitude spectrum (filtered/unfilt)
   services/noise_throttle.py per-axis STFT spectrogram binned by throttle
   services/step_response.py  Wiener deconvolution (port of PID-Analyzer)
-  services/session_store.py  log registry + DataFrame LRU cache
+  services/session_store.py  log registry + DataFrame LRU cache + inactivity reaper (last_access)
   core/binary_pack.py        typed-array binary format for large time series
 frontend/
   js/charts/zoomPlugin.js    wheel zoom/drag pan/reset + X-sync group

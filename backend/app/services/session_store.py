@@ -1,10 +1,13 @@
 """In-process registry of uploaded logs and their decoded sessions.
 
 Storage is fully ephemeral (single worker only - documented in README):
-everything under DATA_DIR is wiped on startup and on shutdown, a browser deletes
-its own uploads when its tab closes, and a reaper prunes abandoned uploads.
-Uploads are never deduplicated/shared between users. index.json per log dir is
-just the on-disk backing for the in-process registry during runtime.
+everything under DATA_DIR is wiped on startup and on shutdown, and a reaper
+prunes logs that have gone untouched for DATA_TTL_MIN. Every access refreshes a
+log's ``last_access`` (see ``touch``/``get_log``) and open browser tabs send a
+keepalive heartbeat, so expiry is inactivity-based: an accidental page reload
+re-attaches within seconds and does not lose data. Uploads are never
+deduplicated/shared between users. index.json per log dir is just the on-disk
+backing for the in-process registry during runtime.
 """
 
 import json
@@ -62,10 +65,24 @@ def register_upload(log_id: str, filename: str) -> dict:
             "gyro_unfilt_source": unfilt_source,
         })
 
+    now = time.time()
     index = {"log_id": log_id, "filename": filename,
-             "uploaded_at": time.time(), "sessions": sessions}
+             "uploaded_at": now, "last_access": now, "sessions": sessions}
     (log_dir / "index.json").write_text(json.dumps(index, indent=1))
     return index
+
+
+def touch(log_id: str) -> None:
+    """Refresh a log's last_access so the inactivity reaper keeps it alive.
+    Best-effort: a missing/half-written index just isn't refreshed this time."""
+    index_path = _log_dir(log_id) / "index.json"
+    try:
+        with _lock:
+            index = json.loads(index_path.read_text())
+            index["last_access"] = time.time()
+            index_path.write_text(json.dumps(index, indent=1))
+    except (OSError, json.JSONDecodeError):
+        pass
 
 
 def wipe_all() -> None:
@@ -81,13 +98,13 @@ def wipe_all() -> None:
 
 
 def cleanup_expired() -> int:
-    """Delete logs older than DATA_TTL_MIN. Returns number removed."""
+    """Delete logs untouched for DATA_TTL_MIN (inactivity). Returns number removed."""
     if config.DATA_TTL_MIN <= 0:
         return 0
     cutoff = time.time() - config.DATA_TTL_MIN * 60
     removed = 0
     for index in list_logs():
-        if index["uploaded_at"] < cutoff:
+        if index.get("last_access", index["uploaded_at"]) < cutoff:
             shutil.rmtree(_log_dir(index["log_id"]), ignore_errors=True)
             removed += 1
     return removed
@@ -113,6 +130,10 @@ def get_log(log_id: str) -> dict:
     index_path = _log_dir(log_id) / "index.json"
     if not index_path.exists():
         raise NotFound(f"Unknown log_id {log_id}")
+    # Any access is activity: refresh last_access so the reaper spares logs in
+    # use. This is the choke point for reads (get_session and list_sessions both
+    # route through here); the reaper reads via list_logs and never self-refreshes.
+    touch(log_id)
     return json.loads(index_path.read_text())
 
 

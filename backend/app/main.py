@@ -21,8 +21,9 @@ log = logging.getLogger(__name__)
 
 
 async def _reaper():
-    """Backstop for abandoned uploads: periodically prune anything older than
-    DATA_TTL_MIN (normal cleanup happens on tab close / startup wipe)."""
+    """Prune uploads left inactive for DATA_TTL_MIN. Every fetch and the browser
+    keepalive heartbeat refresh a log's last_access, so only genuinely-abandoned
+    uploads are reaped; a fresh startup also wipes everything."""
     interval = config.REAP_INTERVAL_MIN * 60
     if interval <= 0:
         return

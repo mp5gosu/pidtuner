@@ -10,6 +10,10 @@
 //   alt + left-drag  -> draw a box, zoom to that rectangle
 //   double-click     -> reset to full data range
 //
+// The two axes are strictly independent: a horizontal zoom/pan never re-frames
+// the vertical zoom (uPlot would otherwise auto-refit Y to the visible window),
+// so Y only changes when the interaction explicitly targets it.
+//
 // `group`: charts sharing the same group object mirror their X scale
 // (time axis) so panning/zooming one chart moves its siblings.
 
@@ -86,17 +90,28 @@ export function zoomPlugin({ group = null } = {}) {
         // gestures (pan+zoom) and double-tap reset are handled below.
         over.style.touchAction = "pan-y";
 
+        // Re-assert a chart's current Y scale. Setting X alone makes uPlot
+        // auto-refit Y ("frame to height") to the data in the new X window,
+        // throwing away the user's vertical zoom. Pending an explicit Y in the
+        // same batch as the X change keeps the two axes strictly independent.
+        function keepY(chart) {
+          const { min, max } = chart.scales.y;
+          if (min != null && max != null) chart.setScale("y", { min, max });
+        }
+
         function setX(min, max) {
           // clamp to full range so you can't zoom/pan into nothingness
           const span = max - min;
           if (span >= xFull.max - xFull.min) { min = xFull.min; max = xFull.max; }
           else if (min < xFull.min) { min = xFull.min; max = min + span; }
           else if (max > xFull.max) { max = xFull.max; min = max - span; }
-          u.setScale("x", { min, max });
+          // one commit: X moves, Y stays put (callers wanting a Y change set it
+          // explicitly afterwards — pan, box-zoom, XY/Y wheel-zoom, pinch).
+          u.batch(() => { keepY(u); u.setScale("x", { min, max }); });
           if (group && syncEnabled && !group.broadcasting) {
             group.broadcasting = true;
             for (const other of group.charts) {
-              if (other !== u) other.setScale("x", { min, max });
+              if (other !== u) other.batch(() => { keepY(other); other.setScale("x", { min, max }); });
             }
             group.broadcasting = false;
           }

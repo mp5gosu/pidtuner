@@ -6,6 +6,7 @@
 import { getStepResponse, renameSession } from "./api.js";
 import { createChart, makeMaximizable, closeMaximized } from "./charts/uplotSetup.js";
 import { makeSyncGroup } from "./charts/zoomPlugin.js";
+import { persistCompare } from "./persist.js";
 
 const AXES = ["roll", "pitch", "yaw"];
 
@@ -26,16 +27,18 @@ export function initCompare(toast) {
   toastFn = toast;
 }
 
-// Ephemeral storage: when this tab closes or reloads, delete its own uploads
-// from the server so nothing lingers for other users. keepalive lets the
-// request outlive the page. (The server also wipes on startup + reaps by TTL.)
-window.addEventListener("pagehide", () => {
-  for (const log of uploadedLogs) {
-    try {
-      fetch(`/api/logs/${log.log_id}`, { method: "DELETE", keepalive: true });
-    } catch { /* best effort */ }
-  }
-});
+// Remember which logs this browser uploaded and which sessions are compared, so
+// an accidental reload re-attaches instead of losing everything. Nothing is
+// deleted on tab close: the server reaps a log after DATA_TTL_MIN of inactivity
+// and open tabs keep theirs alive via the keepalive heartbeat (see main.js).
+function saveState() {
+  persistCompare(uploadedLogs.map((l) => l.log_id), [...selected.keys()]);
+}
+
+// log_ids uploaded in this browser session, for the keepalive heartbeat.
+export function uploadedLogIds() {
+  return uploadedLogs.map((l) => l.log_id);
+}
 
 function sessionKey(logId, sid) {
   return `${logId}:${sid}`;
@@ -64,6 +67,7 @@ function freeColor() {
 export function registerUploadedLog(index) {
   if (!uploadedLogs.some((l) => l.log_id === index.log_id)) {
     uploadedLogs.push(index);
+    saveState();
   }
 }
 
@@ -79,6 +83,34 @@ export async function selectForCompare(logId, sid) {
     label: makeLabel(log, sid), color, data,
     headers: sessionHeaders(log, sid),
   });
+  saveState();
+  refreshUI();
+}
+
+// Re-attach after a page reload to the logs still alive on the server.
+// `indexes` are freshly-fetched index objects (already confirmed alive);
+// `selectedKeys` are the sessions that were being compared. Anything the server
+// has since reaped, or that no longer fits the 8-colour palette, is dropped.
+export async function restoreCompare(indexes, selectedKeys) {
+  for (const index of indexes) registerUploadedLog(index);
+  for (const key of selectedKeys) {
+    if (selected.has(key)) continue;
+    const sep = key.lastIndexOf(":");
+    const logId = key.slice(0, sep);
+    const sid = parseInt(key.slice(sep + 1), 10);
+    const log = uploadedLogs.find((l) => l.log_id === logId);
+    if (!log || !log.sessions.some((s) => s.session_id === sid)) continue;
+    const color = freeColor();
+    if (!color) break;
+    try {
+      const data = await getStepResponse(logId, sid);
+      selected.set(key, {
+        label: makeLabel(log, sid), color, data,
+        headers: sessionHeaders(log, sid),
+      });
+    } catch { /* reaped or failed - skip */ }
+  }
+  saveState();
   refreshUI();
 }
 
@@ -112,12 +144,6 @@ function renderPicker(pickerEl) {
     title.className = "picker-log-name";
     title.textContent = log.filename;
     head.appendChild(title);
-    const del = document.createElement("button");
-    del.className = "del-btn";
-    del.title = "Remove log (also from the server)";
-    del.textContent = "🗑";
-    del.addEventListener("click", () => deleteLog(log));
-    head.appendChild(del);
     group.appendChild(head);
 
     for (const s of log.sessions) {
@@ -165,25 +191,11 @@ function renderPicker(pickerEl) {
   }
 }
 
-async function deleteLog(log) {
-  if (!confirm(`Remove "${log.filename}" from the comparison and from the server?`)) return;
-  try {
-    const resp = await fetch(`/api/logs/${log.log_id}`, { method: "DELETE" });
-    if (!resp.ok) throw new Error((await resp.json()).detail || "Delete failed");
-  } catch (e) {
-    toastFn(e.message);
-    return;
-  }
-  const idx = uploadedLogs.findIndex((l) => l.log_id === log.log_id);
-  if (idx >= 0) uploadedLogs.splice(idx, 1);
-  for (const s of log.sessions) selected.delete(sessionKey(log.log_id, s.session_id));
-  refreshUI();
-}
-
 async function toggleSession(cb, log, sid) {
   const key = sessionKey(log.log_id, sid);
   if (!cb.checked) {
     selected.delete(key);
+    saveState();
     refreshUI();
     return;
   }
@@ -200,6 +212,7 @@ async function toggleSession(cb, log, sid) {
       label: makeLabel(log, sid), color, data,
       headers: sessionHeaders(log, sid),
     });
+    saveState();
     refreshUI();
   } catch (e) {
     cb.checked = false;

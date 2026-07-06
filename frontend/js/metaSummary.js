@@ -1,6 +1,7 @@
 // Compact metadata summary bar under the header — an at-a-glance recap of the
-// active session (firmware, sample rate, sizes, …) that stays visible across
-// all tabs. The full Rates table lives on the Gyro tab (see sessionInfo.js).
+// active session (firmware, sample rate, rates type, sizes, …) that stays
+// visible across all tabs. The full per-axis tuning/rates comparison lives on
+// the Step-Response tab's Configuration table (see compare.js).
 
 const barEl = () => document.getElementById("meta-summary");
 

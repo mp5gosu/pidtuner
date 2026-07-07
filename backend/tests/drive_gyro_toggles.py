@@ -4,8 +4,8 @@ import sys
 
 from playwright.sync_api import sync_playwright
 
-URL = "http://localhost:8000"
-LOG = "/mnt/fastlane/dev/playground/pidtuner/example_logs/btfl_003.bbl"
+URL = sys.argv[2] if len(sys.argv) > 2 else "http://localhost:8000"
+LOG = sys.argv[1] if len(sys.argv) > 1 else "/tmp/synthetic.bbl"
 
 
 def shown_counts(page):

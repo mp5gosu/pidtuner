@@ -7,7 +7,7 @@ import sys
 from playwright.sync_api import sync_playwright
 
 BASE = sys.argv[2] if len(sys.argv) > 2 else "http://localhost:8323"
-LOG_FILE = sys.argv[1] if len(sys.argv) > 1 else "../example_logs/btfl_all.bbl"
+LOG_FILE = sys.argv[1] if len(sys.argv) > 1 else "/tmp/synthetic.bbl"
 OUT = "/tmp/pidtuner-shots"
 
 

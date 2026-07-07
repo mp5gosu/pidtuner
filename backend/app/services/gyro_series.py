@@ -9,6 +9,10 @@ from . import csv_parser
 AXES = ("roll", "pitch", "yaw")
 
 
+class GyroError(Exception):
+    pass
+
+
 def minmax_decimate(time: np.ndarray, series: list[np.ndarray], max_points: int):
     """Bucket-wise min/max decimation preserving the noise envelope.
 
@@ -54,6 +58,8 @@ def extract(df: pd.DataFrame, session: dict, max_points: int | None = None) -> d
     buckets and time axis.
     """
     max_points = max_points or config.MAX_CHART_POINTS
+    if "time" not in df.columns or len(df) == 0:
+        raise GyroError("Decoded log has no usable 'time' column.")
     time_us = df["time"].to_numpy()
     time_s = (time_us - time_us[0]) * 1e-6
     unfilt_source = session.get("gyro_unfilt_source", "")

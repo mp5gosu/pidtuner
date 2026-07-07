@@ -1,4 +1,5 @@
 import json
+import os
 
 from fastapi import APIRouter, HTTPException
 from fastapi.concurrency import run_in_threadpool
@@ -17,7 +18,10 @@ def _compute(log_id: str, session_id: int) -> dict:
 
     cache_path = config.DATA_DIR / log_id / f"stepresp_v{_CACHE_VERSION}_{session_id}.json"
     if cache_path.exists():
-        return json.loads(cache_path.read_text())
+        try:
+            return json.loads(cache_path.read_text())
+        except (OSError, json.JSONDecodeError):
+            pass  # corrupt/half-written cache -> recompute below
 
     df = session_store.get_dataframe(log_id, session_id)
     result = step_response.compute(df, session)
@@ -28,7 +32,10 @@ def _compute(log_id: str, session_id: int) -> dict:
             if key in axis_data and axis_data[key] is not None:
                 axis_data[key] = [round(float(v), 5) for v in axis_data[key]]
 
-    cache_path.write_text(json.dumps(result))
+    # Atomic write so a concurrent reader never sees a partial cache file.
+    tmp = cache_path.with_name(cache_path.name + ".tmp")
+    tmp.write_text(json.dumps(result))
+    os.replace(tmp, cache_path)
     return result
 
 

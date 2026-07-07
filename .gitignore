@@ -4,7 +4,6 @@ __pycache__/
 backend/bin/
 backend/data/
 /vendor/
-uv.lock
 .claude/
 example_logs/
 CLAUDE.md

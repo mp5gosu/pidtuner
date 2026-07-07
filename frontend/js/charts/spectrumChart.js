@@ -198,6 +198,7 @@ function createMarkerController(u, nyquist) {
     close.className = "spec-marker-close";
     close.textContent = "×";
     close.title = "Remove marker";
+    close.setAttribute("aria-label", "Remove marker");
 
     pill.append(text, close);
     line.append(hit, pill);

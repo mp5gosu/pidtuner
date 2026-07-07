@@ -2,6 +2,7 @@ import logging
 import shutil
 
 from fastapi import APIRouter, Body, HTTPException, Request, UploadFile
+from fastapi.concurrency import run_in_threadpool
 
 from .. import config
 from ..services import blackbox_decoder, session_store
@@ -13,8 +14,13 @@ router = APIRouter()
 @router.post("/api/logs")
 async def upload_log(request: Request, file: UploadFile):
     length = request.headers.get("content-length")
-    if length and int(length) > config.MAX_UPLOAD_BYTES:
-        raise HTTPException(413, "Log file too large")
+    # Fast-path reject; a malformed header just falls through to the streaming
+    # cap below, which enforces the real limit.
+    try:
+        if length and int(length) > config.MAX_UPLOAD_BYTES:
+            raise HTTPException(413, "Log file too large")
+    except ValueError:
+        pass
 
     log_id = session_store.create_log_id()
     log_dir = config.DATA_DIR / log_id
@@ -33,8 +39,13 @@ async def upload_log(request: Request, file: UploadFile):
                 raise HTTPException(413, "Log file too large")
             out.write(chunk)
 
+    # Decode (subprocess + header/CSV parsing) is heavy and blocking; keep it off
+    # the single event-loop thread so concurrent chart fetches / heartbeats stay
+    # responsive during a large upload.
     try:
-        index = session_store.register_upload(log_id, file.filename or "log.bbl")
+        index = await run_in_threadpool(
+            session_store.register_upload, log_id, file.filename or "log.bbl"
+        )
     except blackbox_decoder.DecodeError as e:
         shutil.rmtree(log_dir, ignore_errors=True)
         raise HTTPException(422, str(e))

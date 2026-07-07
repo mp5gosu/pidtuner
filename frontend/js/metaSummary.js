@@ -3,6 +3,8 @@
 // visible across all tabs. The full per-axis tuning/rates comparison lives on
 // the Step-Response tab's Configuration table (see compare.js).
 
+import { esc } from "./util.js";
+
 const barEl = () => document.getElementById("meta-summary");
 
 function fmtBytes(b) {
@@ -30,7 +32,7 @@ export function renderMetaSummary(session, file) {
   const add = (label, value) => {
     if (value == null || value === "") return;
     items.push(`<span class="meta-item"><span class="meta-label">${label}</span>` +
-      `<span class="meta-value">${value}</span></span>`);
+      `<span class="meta-value">${esc(value)}</span></span>`);
   };
 
   add("Craft", h.craft_name);

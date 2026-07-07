@@ -6,8 +6,14 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VENDOR="$ROOT/vendor/blackbox-tools"
 
+# Pinned for reproducible, tamper-evident builds: this parser runs on untrusted
+# log data, so decoder version drift must be a deliberate bump, not automatic.
+# Keep in sync with the BBT_REF ARG in the Dockerfile.
+BBT_REF="af5c31ab9ab62b93083d6d355043026a76ce4eee"
+
 if [ ! -f "$VENDOR/Makefile" ]; then
-    git clone --depth 1 https://github.com/betaflight/blackbox-tools.git "$VENDOR"
+    git clone https://github.com/betaflight/blackbox-tools.git "$VENDOR"
+    git -C "$VENDOR" checkout --quiet "$BBT_REF"
 fi
 
 # Only the decode tool is needed; the cairo pkg-config errors from the

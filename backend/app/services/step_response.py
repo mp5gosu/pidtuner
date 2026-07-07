@@ -9,8 +9,8 @@ response to a step response, and average across windows weighted by a
 
 import numpy as np
 import pandas as pd
-from scipy.ndimage import gaussian_filter1d
 from scipy.interpolate import interp1d
+from scipy.ndimage import gaussian_filter1d
 
 from . import csv_parser
 

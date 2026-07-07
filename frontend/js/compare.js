@@ -7,6 +7,7 @@ import { getStepResponse, renameSession } from "./api.js";
 import { createChart, makeMaximizable, closeMaximized } from "./charts/uplotSetup.js";
 import { makeSyncGroup } from "./charts/zoomPlugin.js";
 import { persistCompare } from "./persist.js";
+import { esc } from "./util.js";
 
 const AXES = ["roll", "pitch", "yaw"];
 
@@ -177,6 +178,7 @@ function renderPicker(pickerEl) {
       rename.type = "button";
       rename.className = "rename-btn";
       rename.title = "Rename session";
+      rename.setAttribute("aria-label", "Rename session");
       rename.textContent = "✎";
       rename.addEventListener("click", (e) => {
         e.preventDefault();
@@ -332,7 +334,7 @@ function latencyBox(axis) {
     row.className = "latency-row";
     const width = e.value == null ? 0 : (e.value / max) * 100;
     row.innerHTML =
-      `<span class="latency-label" title="${e.label}">${e.label}</span>` +
+      `<span class="latency-label" title="${esc(e.label)}">${esc(e.label)}</span>` +
       `<span class="latency-track"><span class="latency-bar" ` +
       `style="width:${width}%;background:${e.color}"></span></span>` +
       `<span class="latency-value">${e.value == null ? "–" : e.value.toFixed(1) + " ms"}</span>`;
@@ -413,14 +415,14 @@ function metricsTable(axis, bestKey) {
     const tr = document.createElement("tr");
     if (d?.error || !d) {
       tr.innerHTML = `<td><span class="color-chip" style="background:${color}"></span></td>` +
-        `<td>${heart}${label}</td><td colspan="5" class="dim">${d?.error ?? "-"}</td>`;
+        `<td>${heart}${esc(label)}</td><td colspan="5" class="dim">${esc(d?.error ?? "-")}</td>`;
     } else {
       const m = d.metrics;
       const fmt = (v, u = "") => (v == null ? "–" : `${v}${u}`);
       tr.innerHTML =
         `<td><span class="color-chip" style="background:${color}"></span></td>` +
-        `<td>${heart}${label}</td>` +
-        `<td>${d.pid ? d.pid.split(",").slice(0, 3).join("/") : "–"}</td>` +
+        `<td>${heart}${esc(label)}</td>` +
+        `<td>${d.pid ? esc(d.pid.split(",").slice(0, 3).join("/")) : "–"}</td>` +
         `<td>${fmt(m.delay_ms, " ms")}</td>` +
         `<td>${fmt(m.rise_time_ms, " ms")}</td>` +
         `<td>${fmt(m.peak)}</td>` +
@@ -535,7 +537,7 @@ function buildConfigBox() {
     const th = document.createElement("th");
     th.innerHTML =
       `<span class="color-chip" style="background:${s.color}"></span>` +
-      `<span class="cfg-sess">${s.label}</span>`;
+      `<span class="cfg-sess">${esc(s.label)}</span>`;
     htr.appendChild(th);
   }
   thead.appendChild(htr);

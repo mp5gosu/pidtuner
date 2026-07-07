@@ -7,6 +7,7 @@ import {
   renameSessionByKey, restoreCompare, uploadedLogIds,
 } from "./compare.js";
 import { setSyncEnabled } from "./charts/zoomPlugin.js";
+import { closeMaximized } from "./charts/uplotSetup.js";
 import { renderMetaSummary, clearMetaSummary } from "./metaSummary.js";
 import {
   persistActive, loadLogIds, loadSelectedKeys, loadActive, clearPersisted,
@@ -65,6 +66,10 @@ el("file-input").addEventListener("change", async (e) => {
       bar.style.width = `${Math.round(frac * 100)}%`;
       label.textContent = frac >= 1 ? "decoding…" : `${Math.round(frac * 100)}%`;
     });
+    if (!result.sessions || !result.sessions.length) {
+      toast("No decodable sessions in this log");
+      return;
+    }
     state.logId = result.log_id;
     state.sessions = result.sessions;
     state.file = { name: file.name, size: file.size };
@@ -194,19 +199,45 @@ async function selectSession(sessionId) {
 
 // ---- tabs -------------------------------------------------------------
 
-document.querySelectorAll(".tab").forEach((tab) => {
-  tab.addEventListener("click", () => {
-    document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
-    document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
-    tab.classList.add("active");
-    el(`tab-${tab.dataset.tab}`).classList.add("active");
-    loadActiveTab();
+const tabButtons = [...document.querySelectorAll(".tab")];
+
+function activateTab(tab) {
+  // A maximized chart is position:fixed and its close button lives inside the
+  // panel we are about to hide, so switching tabs would strand the backdrop.
+  closeMaximized();
+  tabButtons.forEach((t) => {
+    const on = t === tab;
+    t.classList.toggle("active", on);
+    t.setAttribute("aria-selected", on ? "true" : "false");
+    t.tabIndex = on ? 0 : -1;
+  });
+  document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
+  el(`tab-${tab.dataset.tab}`).classList.add("active");
+  loadActiveTab();
+}
+
+tabButtons.forEach((tab) => {
+  tab.addEventListener("click", () => activateTab(tab));
+  // Roving-tabindex arrow-key navigation for the tablist.
+  tab.addEventListener("keydown", (e) => {
+    const i = tabButtons.indexOf(tab);
+    let next = null;
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") next = tabButtons[(i + 1) % tabButtons.length];
+    else if (e.key === "ArrowLeft" || e.key === "ArrowUp") next = tabButtons[(i - 1 + tabButtons.length) % tabButtons.length];
+    else if (e.key === "Home") next = tabButtons[0];
+    else if (e.key === "End") next = tabButtons[tabButtons.length - 1];
+    if (next) { e.preventDefault(); next.focus(); activateTab(next); }
   });
 });
 
 function activeTab() {
   return document.querySelector(".tab.active").dataset.tab;
 }
+
+// Bumped on every load; a fetch that resolves after a newer load started sees a
+// stale seq and skips rendering, so a fast session/tab switch can't paint the
+// wrong session's data (responses may return out of order).
+let loadSeq = 0;
 
 async function loadActiveTab() {
   const tab = activeTab();
@@ -215,18 +246,26 @@ async function loadActiveTab() {
     renderCompareTab();
     return;
   }
-  if (state.logId == null || state.sessionId == null) return;
+  if (state.logId == null || state.sessionId == null) {
+    el("empty-state").classList.remove("hidden");
+    return;
+  }
+  el("empty-state").classList.add("hidden");
+  const seq = ++loadSeq;
   try {
     if (tab === "gyro" && !state.gyroLoaded) {
       const data = await getGyro(state.logId, state.sessionId);
+      if (seq !== loadSeq) return;
       renderGyro(el("gyro-charts"), data);
       state.gyroLoaded = true;
     } else if (tab === "spectrum" && !state.spectrumLoaded) {
       const data = await getSpectrum(state.logId, state.sessionId);
+      if (seq !== loadSeq) return;
       renderSpectrum(el("spectrum-charts"), data);
       state.spectrumLoaded = true;
     } else if (tab === "noise" && !state.noiseLoaded) {
       const data = await getNoiseThrottle(state.logId, state.sessionId);
+      if (seq !== loadSeq) return;
       renderNoiseThrottle(el("noise-charts"), data);
       state.noiseLoaded = true;
     }

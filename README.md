@@ -109,14 +109,16 @@ docker run -d -p 8000:8000 pidtuner:latest
 ### Prebuilt image (GitHub Actions → ghcr.io)
 
 [`.github/workflows/docker-publish.yml`](.github/workflows/docker-publish.yml)
-builds and pushes the image to the GitHub Container Registry on every push to
-`develop`/`main`, on `v*` tags, and on manual dispatch — no secrets to set up
-(it uses the built-in `GITHUB_TOKEN`). To pull instead of building, activate the
-`image:` line in [`docker-compose.yml`](docker-compose.yml) (and remove
-`build: .`):
+builds and **pushes** the image to the GitHub Container Registry only on `v*`
+tags and on manual dispatch — no secrets to set up (it uses the built-in
+`GITHUB_TOKEN`). Pull requests build the image too, but do not push (Dockerfile
+validation). Day-to-day pushes/PRs run lint + tests via
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml). To pull instead of
+building, activate the `image:` line in
+[`docker-compose.yml`](docker-compose.yml) (and remove `build: .`):
 
 ```
-ghcr.io/mp5gosu/pidtuner:latest      # tracks the default branch
+ghcr.io/mp5gosu/pidtuner:latest      # the latest release tag
 ghcr.io/mp5gosu/pidtuner:v1.2.3      # from a `git tag v1.2.3`
 ```
 

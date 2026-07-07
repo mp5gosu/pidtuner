@@ -76,9 +76,17 @@ def decode_session(session_path: Path) -> Path:
         "--unit-frame-time", "us",
         str(session_path),
     ]
-    result = subprocess.run(
-        cmd, capture_output=True, timeout=config.DECODE_TIMEOUT_S
-    )
+    try:
+        result = subprocess.run(
+            cmd, capture_output=True, timeout=config.DECODE_TIMEOUT_S
+        )
+    except subprocess.TimeoutExpired as e:
+        raise DecodeError(
+            f"blackbox_decode timed out after {config.DECODE_TIMEOUT_S}s "
+            f"for {session_path.name}"
+        ) from e
+    except OSError as e:
+        raise DecodeError(f"Could not run blackbox_decode: {e}") from e
     csv_path = session_path.parent / (session_path.stem + ".01.csv")
     if result.returncode != 0 or not csv_path.exists():
         stderr = result.stderr.decode("utf-8", errors="replace")[-2000:]

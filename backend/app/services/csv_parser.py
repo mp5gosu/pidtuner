@@ -104,11 +104,18 @@ def load_dataframe(csv_path: Path) -> pd.DataFrame:
         c for c in raw_cols
         if _normalize_column(c).startswith(_WANTED_PREFIXES)
     ]
+    # float32 for the bulk (halves the cached-frame RAM; the wire format
+    # down-converts to f32 anyway), float64 only for the microsecond time base
+    # where the large absolute magnitude needs the extra precision.
+    dtypes = {
+        c: (np.float64 if _normalize_column(c) == "time" else np.float32)
+        for c in usecols
+    }
     df = pd.read_csv(
         csv_path,
         skipinitialspace=True,
         usecols=usecols,
-        dtype=np.float64,
+        dtype=dtypes,
         on_bad_lines="skip",
     )
     df.columns = [_normalize_column(c) for c in df.columns]

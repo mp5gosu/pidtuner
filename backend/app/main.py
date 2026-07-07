@@ -70,4 +70,11 @@ def index():
     return FileResponse(config.FRONTEND_DIR / "index.html")
 
 
+@app.get("/healthz", include_in_schema=False)
+def healthz():
+    """Lightweight liveness probe (used by the docker-compose healthcheck) that
+    exercises the backend rather than just static file serving."""
+    return {"status": "ok"}
+
+
 app.mount("/static", StaticFiles(directory=config.FRONTEND_DIR), name="static")

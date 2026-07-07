@@ -8,7 +8,8 @@ name: Build & publish Docker image
 
 on:
   push:
-    tags: ["v*"]          # only a git tag like v1.2.3 triggers a build -> :1.2.3, :1.2, :latest
+    tags: ["v*"]          # a git tag like v1.2.3 builds AND pushes -> :1.2.3, :1.2, :latest
+  pull_request: {}         # PRs build the image (no push) to validate the Dockerfile pre-merge
   workflow_dispatch: {}    # allow manual "Run workflow" from the Actions tab
 
 env:
@@ -30,6 +31,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to ${{ env.REGISTRY }}
+        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -52,7 +54,7 @@ jobs:
         with:
           context: .
           platforms: linux/amd64        # x86_64 servers
-          push: true
+          push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha

@@ -15,7 +15,7 @@ MAX_UPLOAD_BYTES = int(os.environ.get("PIDTUNER_MAX_UPLOAD_BYTES", 512 * 1024 * 
 # Sessions smaller than this are considered bogus arm/disarm blips and skipped.
 MIN_SESSION_BYTES = int(os.environ.get("PIDTUNER_MIN_SESSION_BYTES", 64 * 1024))
 
-DECODE_TIMEOUT_S = 180
+DECODE_TIMEOUT_S = int(os.environ.get("PIDTUNER_DECODE_TIMEOUT_S", 180))
 
 # Cap for time-series points sent to the browser per series (min/max decimated).
 MAX_CHART_POINTS = int(os.environ.get("PIDTUNER_MAX_CHART_POINTS", 400_000))

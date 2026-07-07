@@ -43,7 +43,9 @@ export function makeMaximizable(box) {
 
   const btn = document.createElement("button");
   btn.className = "max-btn";
+  btn.type = "button";
   btn.title = "Maximize (Esc closes)";
+  btn.setAttribute("aria-label", "Maximize chart");
   btn.textContent = "⛶";
   head.appendChild(btn);
   box.prepend(head);
@@ -53,6 +55,7 @@ export function makeMaximizable(box) {
     backdrop?.classList.add("hidden");
     btn.textContent = "⛶";
     btn.title = "Maximize (Esc closes)";
+    btn.setAttribute("aria-label", "Maximize chart");
     restoreFn = null;
   }
 
@@ -62,6 +65,7 @@ export function makeMaximizable(box) {
     ensureBackdrop().classList.remove("hidden");
     btn.textContent = "✕";
     btn.title = "Restore (Esc)";
+    btn.setAttribute("aria-label", "Restore chart");
     restoreFn = restore;
   }
 

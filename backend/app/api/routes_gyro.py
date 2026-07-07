@@ -36,5 +36,7 @@ async def get_gyro(log_id: str, session_id: int,
     try:
         payload = await run_in_threadpool(_build_payload, log_id, session_id, max_points)
     except session_store.NotFound as e:
-        raise HTTPException(404, str(e))
+        raise HTTPException(404, str(e)) from e
+    except gyro_series.GyroError as e:
+        raise HTTPException(422, str(e)) from e
     return Response(content=payload, media_type="application/octet-stream")

@@ -11,6 +11,8 @@ backing for the in-process registry during runtime.
 """
 
 import json
+import os
+import re
 import shutil
 import threading
 import time
@@ -27,17 +29,43 @@ _lock = threading.Lock()
 _df_cache: OrderedDict[tuple[str, int], pd.DataFrame] = OrderedDict()
 _DF_CACHE_MAX = 4
 
+# log_ids are produced by create_log_id() as uuid4().hex[:12]. Enforcing that
+# shape rejects path-traversal ids ('..', '.', 'a/b') before they ever reach a
+# filesystem call — see delete_log()/get_log(), which would otherwise rmtree /
+# read arbitrary directories relative to DATA_DIR.
+_LOG_ID_RE = re.compile(r"^[0-9a-f]{12}$")
+
 
 class NotFound(Exception):
     pass
 
 
 def _log_dir(log_id: str) -> Path:
+    if not isinstance(log_id, str) or not _LOG_ID_RE.match(log_id):
+        raise NotFound(f"Unknown log_id {log_id!r}")
     return config.DATA_DIR / log_id
 
 
 def create_log_id() -> str:
     return uuid.uuid4().hex[:12]
+
+
+def _write_index(index_path: Path, index: dict) -> None:
+    """Atomically persist an index.json. Writers use truncate-then-write via a
+    temp sibling + os.replace so a concurrent reader never observes a partial
+    file (which would raise JSONDecodeError on the request hot path)."""
+    tmp = index_path.with_name(index_path.name + ".tmp")
+    tmp.write_text(json.dumps(index, indent=1))
+    os.replace(tmp, index_path)
+
+
+def _read_index(index_path: Path) -> dict:
+    """Read+parse an index.json, mapping a missing/corrupt file to NotFound so
+    callers surface a clean 404 instead of a 500 (e.g. reaped mid-request)."""
+    try:
+        return json.loads(index_path.read_text())
+    except (OSError, json.JSONDecodeError) as e:
+        raise NotFound(f"Log index unavailable at {index_path}") from e
 
 
 def register_upload(log_id: str, filename: str) -> dict:
@@ -68,7 +96,7 @@ def register_upload(log_id: str, filename: str) -> dict:
     now = time.time()
     index = {"log_id": log_id, "filename": filename,
              "uploaded_at": now, "last_access": now, "sessions": sessions}
-    (log_dir / "index.json").write_text(json.dumps(index, indent=1))
+    _write_index(log_dir / "index.json", index)
     return index
 
 
@@ -80,14 +108,23 @@ def touch(log_id: str) -> None:
         with _lock:
             index = json.loads(index_path.read_text())
             index["last_access"] = time.time()
-            index_path.write_text(json.dumps(index, indent=1))
+            _write_index(index_path, index)
     except (OSError, json.JSONDecodeError):
         pass
+
+
+def _evict_df_cache(log_id: str) -> None:
+    """Drop any cached DataFrames for a log. Caller must hold _lock. Without this
+    the LRU pins frames of reaped/wiped logs in memory until eviction."""
+    for key in [k for k in _df_cache if k[0] == log_id]:
+        del _df_cache[key]
 
 
 def wipe_all() -> None:
     """Remove every uploaded log under DATA_DIR (but keep DATA_DIR itself, so a
     mounted volume survives). Used on startup and shutdown for ephemerality."""
+    with _lock:
+        _df_cache.clear()
     if not config.DATA_DIR.exists():
         return
     for child in config.DATA_DIR.iterdir():
@@ -105,7 +142,10 @@ def cleanup_expired() -> int:
     removed = 0
     for index in list_logs():
         if index.get("last_access", index["uploaded_at"]) < cutoff:
-            shutil.rmtree(_log_dir(index["log_id"]), ignore_errors=True)
+            log_id = index["log_id"]
+            with _lock:
+                _evict_df_cache(log_id)
+                shutil.rmtree(_log_dir(log_id), ignore_errors=True)
             removed += 1
     return removed
 
@@ -134,7 +174,7 @@ def get_log(log_id: str) -> dict:
     # use. This is the choke point for reads (get_session and list_sessions both
     # route through here); the reaper reads via list_logs and never self-refreshes.
     touch(log_id)
-    return json.loads(index_path.read_text())
+    return _read_index(index_path)
 
 
 def get_session(log_id: str, session_id: int) -> dict:
@@ -168,7 +208,7 @@ def rename_session(log_id: str, session_id: int, name: str) -> dict:
     if not index_path.exists():
         raise NotFound(f"Unknown log_id {log_id}")
     with _lock:
-        index = json.loads(index_path.read_text())
+        index = _read_index(index_path)
         session = next(
             (s for s in index["sessions"] if s["session_id"] == session_id), None)
         if session is None:
@@ -177,7 +217,7 @@ def rename_session(log_id: str, session_id: int, name: str) -> dict:
             session["name"] = name
         else:
             session.pop("name", None)
-        index_path.write_text(json.dumps(index, indent=1))
+        _write_index(index_path, index)
     return session
 
 
@@ -186,6 +226,5 @@ def delete_log(log_id: str) -> None:
     if not log_dir.exists():
         raise NotFound(f"Unknown log_id {log_id}")
     with _lock:
-        for key in [k for k in _df_cache if k[0] == log_id]:
-            del _df_cache[key]
-    shutil.rmtree(log_dir)
+        _evict_df_cache(log_id)
+        shutil.rmtree(log_dir)

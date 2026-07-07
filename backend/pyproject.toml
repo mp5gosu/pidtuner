@@ -18,4 +18,19 @@ package = false
 [dependency-groups]
 dev = [
     "playwright>=1.61.0",
+    "pytest>=8.0",
+    "ruff>=0.6",
 ]
+
+[tool.pytest.ini_options]
+# Run from backend/ so `from app...` imports resolve without the PYTHONPATH= dance.
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+# Generated dirs and the throwaway Playwright UI drivers stay out of lint.
+extend-exclude = ["bin", "data", "tests/drive_*.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]

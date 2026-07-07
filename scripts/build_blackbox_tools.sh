@@ -24,7 +24,10 @@ mkdir -p "$ROOT/backend/bin"
 cp "$VENDOR/obj/blackbox_decode" "$ROOT/backend/bin/blackbox_decode"
 chmod +x "$ROOT/backend/bin/blackbox_decode"
 
-"$ROOT/backend/bin/blackbox_decode" --help >/dev/null 2>&1 || {
+# Smoke-test on OUTPUT, not exit code: blackbox_decode exits non-zero on --help
+# (255) even when healthy, and `set -o pipefail` would trip on that in a pipe.
+help_out="$("$ROOT/backend/bin/blackbox_decode" --help 2>&1 || true)"
+if ! grep -q Blackbox <<<"$help_out"; then
     echo "built binary failed its smoke test" >&2; exit 1;
-}
+fi
 echo "OK: backend/bin/blackbox_decode"
